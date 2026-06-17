@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:bcrypt/bcrypt.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -2415,118 +2416,46 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
 
-  // 1. ARCore/ARKit 및 3D 하드웨어 센서 제어 의존성 설정 (개념 주입)
-  // final ARSessionController? _arSessionController = null;
-  Timer? _sensorTimer;
-  Timer? _autoTestTimer; // 백그라운드 자동 서브밋 테스트 타이머
-  double _liveDistance = 800.0; // ToF/LiDAR 실시간 사물 거리 (mm)
-  bool _isInserting = false; // Supabase 동기화 락 (비동기 중첩 방지용)
+  // 1. ToF/LiDAR 하드웨어 센서 기기 통신 스트림을 위한 EventChannel 정의
+  static const EventChannel _sensorEventChannel = EventChannel('com.fishlen.measurement/sensor');
+  StreamSubscription? _sensorSubscription;
+  double _liveDistance = 120.5; // 센서 수신 거리의 기본값 초기화 (mm)
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this); // 2중 안전 장치: 앱 라이프사이클 옵저버 추가
     _initializeCamera();
-    _startSensorRaycastLoop();
-    _startAutoTestLoop();
+    _startRealSensorStream(); // 진짜 하드웨어 센서 스트림 연결
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // 앱이 백그라운드로 진입할 경우 모든 백그라운드 타이머를 일시 중단하여 누수 및 불필요한 배터리 소모 예방
+    // 앱이 백그라운드로 진입할 경우 센서 스트림 구독을 일시 중단하여 누수 예방
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
-      _sensorTimer?.cancel();
-      _sensorTimer = null;
-      _autoTestTimer?.cancel();
-      _autoTestTimer = null;
+      _sensorSubscription?.cancel();
+      _sensorSubscription = null;
     } else if (state == AppLifecycleState.resumed) {
-      _startSensorRaycastLoop();
-      _startAutoTestLoop();
+      _startRealSensorStream();
     }
   }
 
-  // 1. 순수 백그라운드 가상 센서 루프 구성 (Sine 파형 기반 100mm ~ 1500mm 왕복 + ToF 하드웨어 노이즈 믹스)
-  void _startSensorRaycastLoop() {
-    _sensorTimer?.cancel(); // 중복 타이머 생성 방지
-    // 250ms 주기로 화면 중앙 좌표 레이캐스팅 센서 업데이트 수행
-    _sensorTimer = Timer.periodic(const Duration(milliseconds: 250), (timer) {
-      if (!mounted || !timer.isActive) {
-        timer.cancel(); // 자가 복구용: 위젯이 죽었으면 스스로 타이머를 해제
-        return;
-      }
-      setState(() {
-        // Sine 파형을 이용한 100mm ~ 1500mm 동적 왕복 연산
-        final double seconds = DateTime.now().millisecondsSinceEpoch / 1000.0;
-        final double wave = 800.0 + 700.0 * math.sin(seconds);
-        
-        // ToF 하드웨어 센서 특성을 반영한 다이내믹 랜덤 노이즈 믹스 (±30mm 범위)
-        final double noise = (math.Random().nextDouble() * 60.0) - 30.0;
-        
-        // 극단적인 범위 초과를 방지하기 위해 100.0 ~ 1500.0 범위로 제한(clamp)
-        _liveDistance = (wave + noise).clamp(100.0, 1500.0);
-      });
-    });
-  }
-
-  // 2. 백그라운드 자동 서브밋 트리거 (3초마다 자동으로 Supabase INSERT, 동기화 락 지원)
-  void _startAutoTestLoop() {
-    _autoTestTimer?.cancel(); // 중복 타이머 생성 방지
-    _autoTestTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
-      if (!mounted || !timer.isActive) {
-        timer.cancel(); // 자가 복구용: 위젯이 죽었으면 스스로 타이머를 해제
-        return;
-      }
-
-      // 비동기 중첩(이전 인서트 진행 중 트리거)을 방지하기 위한 동기화 락(Lock) 가드
-      if (_isInserting) {
-        debugPrint('[AUTO TEST] 이전 Supabase 인서트 작업이 진행 중이므로 금번 주기 전송을 스킵합니다.');
-        return;
-      }
-
-      _isInserting = true;
-
-      // 비동기 갭 도중 위젯이 dispose 되는 경우를 대비해 BuildContext 및 상태 파라미터 로컬화
-      final ScaffoldMessengerState? messenger = ScaffoldMessenger.maybeOf(context);
-      final String? currentUserId = widget.loggedInUserId;
-      final currentDistance = double.parse(_liveDistance.toStringAsFixed(1));
-
-      try {
-        final supabase = Supabase.instance.client;
-
-        // 실제 네트워크 레이턴시 상황을 가정하여 Supabase INSERT 호출
-        await supabase.from('tb_measurement').insert({
-          'name': 'mouse',
-          'measurement_value': currentDistance,
-          'confidence': 0.92,
-          'is_trained': 'N',
-          'username': currentUserId,
-        });
-
-        // 비동기 작업 이후, 위젯 마운트 상태 및 로컬 메신저 상태를 다시 한번 안전 점검
-        if (mounted && messenger != null) {
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text('[AUTO TEST] 실시간 센서 거리(${currentDistance}mm) 자동 적재 성공'),
-              backgroundColor: Colors.teal,
-              duration: const Duration(seconds: 1),
-            ),
-          );
+  // 2. 진짜 하드웨어 ToF/LiDAR 센서 스트림 구독
+  void _startRealSensorStream() {
+    _sensorSubscription?.cancel(); // 중복 구독 방지
+    _sensorSubscription = _sensorEventChannel.receiveBroadcastStream().listen(
+      (dynamic event) {
+        if (mounted && event is num) {
+          setState(() {
+            // 하드웨어 3D 센서 레이캐스팅으로부터 수신한 실제 물리 거리값 매핑
+            _liveDistance = event.toDouble();
+          });
         }
-      } catch (e) {
-        debugPrint('[AUTO TEST ERROR LOG] 자동 적재 실패 (네트워크 지연 또는 유실): $e');
-        if (mounted && messenger != null) {
-          messenger.showSnackBar(
-            SnackBar(
-              content: Text('[AUTO TEST ERROR] 자동 적재 실패: $e'),
-              backgroundColor: Colors.redAccent,
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-      } finally {
-        _isInserting = false; // 동기화 락 해제
+      },
+      onError: (dynamic error) {
+        debugPrint('Hardware ToF sensor stream error: $error');
       }
-    });
+    );
   }
 
   Future<void> _initializeCamera() async {
@@ -2560,16 +2489,10 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this); // 라이프사이클 옵저버 해제
-    
-    _sensorTimer?.cancel(); // 가상 ToF 센서 타이머 해제
-    _sensorTimer = null;
-    
-    _autoTestTimer?.cancel(); // 백그라운드 자동 테스트 타이머 해제
-    _autoTestTimer = null;
-    
+    _sensorSubscription?.cancel(); // ToF 센서 스트림 구독 해제
+    _sensorSubscription = null;
     _controller?.dispose();
     _controller = null;
-    
     super.dispose();
   }
 
