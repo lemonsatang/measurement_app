@@ -90222,7 +90222,7 @@ e=$.fw().b
 e===$&&A.a()
 i=e
 s=7
-return A.v(i.r9("tb_measurement").iB(0,A.a1(["name","mouse","measurement_value",120.5,"confidence",0.92,"is_trained","N","distance",j,"username",k],t.N,t.X)),$async$$1)
+return A.v(i.r9("tb_measurement").iB(0,A.a1(["name","mouse","measurement_value",120.5,"confidence",0.92,"is_trained","N","measurement_val",j,"username",k],t.N,t.X)),$async$$1)
 case 7:if(f.c!=null&&l!=null)l.h5(A.vQ(null,null,null,B.lu,null,B.B,null,A.cc("[AUTO TEST] \uc2e4\uc2dc\uac04 \uc13c\uc11c \uac70\ub9ac("+A.j(j)+"mm) \uc790\ub3d9 \uc801\uc7ac \uc131\uacf5",null,null,null,null,null,null),null,B.dA,null,null,null,null,null,null,null,null,null,null))
 n.push(6)
 s=5
@@ -90268,7 +90268,7 @@ k===$&&A.a()
 n=k
 k=o.a
 s=6
-return A.v(n.r9("tb_measurement").iB(0,A.a1(["name","mouse","measurement_value",120.5,"confidence",0.92,"is_trained","N","distance",A.azN(B.d.a_(k.w,1)),"username",k.a.c],t.N,t.X)),$async$$0)
+return A.v(n.r9("tb_measurement").iB(0,A.a1(["name","mouse","measurement_value",120.5,"confidence",0.92,"is_trained","N","measurement_val",A.azN(B.d.a_(k.w,1)),"username",k.a.c],t.N,t.X)),$async$$0)
 case 6:j.h5(B.SZ)
 i.dq()
 q=1

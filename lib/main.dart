@@ -2499,7 +2499,7 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
           'measurement_value': 120.5,
           'confidence': 0.92,
           'is_trained': 'N',
-          'distance': currentDistance,
+          'measurement_val': currentDistance,
           'username': currentUserId,
         });
 
@@ -2650,13 +2650,13 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
                   try {
                     final supabase = Supabase.instance.client;
 
-                    // 3. UI 및 Supabase INSERT 스키마 확장 (distance 컬럼에 실시간 센서 거리 저장)
+                    // 3. UI 및 Supabase INSERT 스키마 확장 (measurement_val 컬럼에 실시간 센서 거리 저장)
                     await supabase.from('tb_measurement').insert({
                       'name': 'mouse',
                       'measurement_value': 120.5,
                       'confidence': 0.92,
                       'is_trained': 'N',
-                      'distance': double.parse(_liveDistance.toStringAsFixed(1)),
+                      'measurement_val': double.parse(_liveDistance.toStringAsFixed(1)),
                       'username': widget.loggedInUserId,
                     });
 
