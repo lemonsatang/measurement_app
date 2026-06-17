@@ -45,10 +45,16 @@ class MyApp extends StatelessWidget {
       title: 'Premium Measurement System',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        brightness: Brightness.dark,
-        primaryColor: Colors.tealAccent,
-        scaffoldBackgroundColor: const Color(0xFF0F0F12),
+        brightness: Brightness.light,
+        primaryColor: const Color(0xFFB3E5FC), // 파스텔 스카이블루
+        scaffoldBackgroundColor: const Color(0xFFF8F9FA), // 부드러운 밀크 화이트
         useMaterial3: true,
+        cardColor: Colors.white,
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFFE3F2FD), // 아주 부드러운 하늘색
+          foregroundColor: Color(0xFF2C3E50), // 세련된 다크 차콜 글씨
+          elevation: 0,
+        ),
       ),
       home: const MainDashboard(), // 첫 진입 화면을 대시보드로 변경
     );
@@ -266,9 +272,9 @@ class _MainDashboardState extends State<MainDashboard> {
     final int successCount = _logs.where((log) => log['is_trained'] != null).length;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF0F0F12),
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF16161E),
+        backgroundColor: const Color(0xFFE3F2FD),
         elevation: 0,
         titleSpacing: 16,
         title: Row(
@@ -277,12 +283,12 @@ class _MainDashboardState extends State<MainDashboard> {
             Container(
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
-                color: Colors.tealAccent.withOpacity(0.1),
+                color: const Color(0xFFB3E5FC).withOpacity(0.3),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(
                 Icons.analytics_outlined,
-                color: Colors.tealAccent,
+                color: Color(0xFF0288D1),
                 size: 20,
               ),
             ),
@@ -297,14 +303,14 @@ class _MainDashboardState extends State<MainDashboard> {
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                     letterSpacing: 1.5,
-                    color: Colors.white,
+                    color: Color(0xFF2C3E50),
                   ),
                 ),
                 Text(
                   'SYSTEM CONTROL PANEL',
                   style: TextStyle(
                     fontSize: 9,
-                    color: Colors.white38,
+                    color: Colors.black45,
                     letterSpacing: 1.0,
                   ),
                 ),
@@ -327,7 +333,7 @@ class _MainDashboardState extends State<MainDashboard> {
                     child: const Text(
                       '로그인',
                       style: TextStyle(
-                        color: Colors.tealAccent,
+                        color: Color(0xFF0288D1),
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                       ),
@@ -344,7 +350,7 @@ class _MainDashboardState extends State<MainDashboard> {
                     child: Text(
                       '회원가입',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
+                        color: const Color(0xFF2C3E50).withOpacity(0.7),
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                       ),
@@ -354,7 +360,7 @@ class _MainDashboardState extends State<MainDashboard> {
                   Text(
                     _userRole == 'ADMIN' ? '🔒 Admin 모드' : '👤 $_loggedInUserId님',
                     style: const TextStyle(
-                      color: Colors.tealAccent,
+                      color: Color(0xFF2C3E50),
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
                     ),
@@ -370,8 +376,8 @@ class _MainDashboardState extends State<MainDashboard> {
                       _fetchLogs();
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content: Text('[SUCCESS] 로그아웃 완료'),
-                          backgroundColor: Colors.teal,
+                          content: Text('[SUCCESS] 로그아웃 완료', style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold)),
+                          backgroundColor: Color(0xFFE8F5E9),
                           duration: Duration(seconds: 2),
                         ),
                       );
@@ -384,7 +390,7 @@ class _MainDashboardState extends State<MainDashboard> {
                     child: Text(
                       '로그아웃',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.7),
+                        color: const Color(0xFF2C3E50).withOpacity(0.7),
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
                       ),
@@ -395,16 +401,16 @@ class _MainDashboardState extends State<MainDashboard> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF1E1E24),
+                    color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white10),
+                    border: Border.all(color: Colors.black12),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
                         Icons.wifi, 
-                        color: _isOnline ? Colors.tealAccent : Colors.grey, 
+                        color: _isOnline ? const Color(0xFF4CAF50) : Colors.grey, 
                         size: 11
                       ),
                       const SizedBox(width: 4),
@@ -413,7 +419,7 @@ class _MainDashboardState extends State<MainDashboard> {
                         style: TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.bold,
-                          color: _isOnline ? Colors.tealAccent : Colors.grey,
+                          color: _isOnline ? const Color(0xFF4CAF50) : Colors.grey,
                         ),
                       ),
                     ],
@@ -429,7 +435,7 @@ class _MainDashboardState extends State<MainDashboard> {
           gradient: LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: [Color(0xFF16161E), Color(0xFF0F0F12)],
+            colors: [Color(0xFFE3F2FD), Color(0xFFF8F9FA)],
           ),
         ),
         child: Column(
@@ -437,8 +443,8 @@ class _MainDashboardState extends State<MainDashboard> {
             Expanded(
               child: RefreshIndicator(
                 onRefresh: _fetchLogs,
-                color: Colors.tealAccent,
-                backgroundColor: const Color(0xFF1E1E24),
+                color: const Color(0xFF0288D1),
+                backgroundColor: Colors.white,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
                   padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 20.0),
@@ -448,14 +454,14 @@ class _MainDashboardState extends State<MainDashboard> {
                       // Section Title: Real-time Statistics
                       const Row(
                         children: [
-                          Icon(Icons.bar_chart_rounded, color: Colors.tealAccent, size: 18),
+                          Icon(Icons.bar_chart_rounded, color: Color(0xFF0288D1), size: 18),
                           SizedBox(width: 6),
                           Text(
                             '실시간 계측 통계',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: Color(0xFF2C3E50),
                               letterSpacing: 0.5,
                             ),
                           ),
@@ -470,21 +476,21 @@ class _MainDashboardState extends State<MainDashboard> {
                             label: '오늘 총 계측',
                             value: '$todayCount 건',
                             icon: Icons.history_toggle_off_rounded,
-                            color: Colors.tealAccent,
+                            color: const Color(0xFF0288D1),
                           ),
                           const SizedBox(width: 10),
                           _buildStatCard(
                             label: '정상 연산 완료',
                             value: '$successCount 건',
                             icon: Icons.check_circle_outline_rounded,
-                            color: Colors.tealAccent,
+                            color: const Color(0xFF4CAF50),
                           ),
                           const SizedBox(width: 10),
                           _buildStatCard(
                             label: '서버 통신',
                             value: _isOnline ? '정상' : '단절',
                             icon: _isOnline ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
-                            color: _isOnline ? Colors.tealAccent : Colors.grey,
+                            color: _isOnline ? const Color(0xFF4CAF50) : Colors.grey,
                             isStatus: true,
                           ),
                         ],
@@ -499,14 +505,14 @@ class _MainDashboardState extends State<MainDashboard> {
                               children: [
                                 const Row(
                                   children: [
-                                    Icon(Icons.show_chart_rounded, color: Colors.tealAccent, size: 18),
+                                    Icon(Icons.show_chart_rounded, color: Color(0xFF0288D1), size: 18),
                                     SizedBox(width: 6),
                                     Text(
                                       '최근 7일 계측 추이',
                                       style: TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.white,
+                                        color: Color(0xFF2C3E50),
                                         letterSpacing: 0.5,
                                       ),
                                     ),
@@ -517,9 +523,16 @@ class _MainDashboardState extends State<MainDashboard> {
                                   height: 200,
                                   padding: const EdgeInsets.only(right: 20, left: 10, top: 15, bottom: 10),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF16161E),
+                                    color: Colors.white,
                                     borderRadius: BorderRadius.circular(16),
-                                    border: Border.all(color: Colors.white10),
+                                    border: Border.all(color: Colors.black.withOpacity(0.05)),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withOpacity(0.02),
+                                        blurRadius: 10,
+                                        offset: const Offset(0, 4),
+                                      ),
+                                    ],
                                   ),
                                   child: _buildLineChart(last7Days, spots, getXAxisLabel),
                                 ),
@@ -531,14 +544,14 @@ class _MainDashboardState extends State<MainDashboard> {
                       // Section Title: Recent History
                       Row(
                         children: [
-                          const Icon(Icons.list_alt_rounded, color: Colors.tealAccent, size: 18),
+                          const Icon(Icons.list_alt_rounded, color: Color(0xFF0288D1), size: 18),
                           const SizedBox(width: 6),
                           const Text(
                             '최근 계측 및 연산 이력',
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                              color: Color(0xFF2C3E50),
                               letterSpacing: 0.5,
                             ),
                           ),
@@ -546,7 +559,7 @@ class _MainDashboardState extends State<MainDashboard> {
                           IconButton(
                             padding: EdgeInsets.zero,
                             constraints: const BoxConstraints(),
-                            icon: const Icon(Icons.refresh_rounded, color: Colors.tealAccent, size: 18),
+                            icon: const Icon(Icons.refresh_rounded, color: Color(0xFF0288D1), size: 18),
                             onPressed: _fetchLogs,
                             tooltip: '실시간 DB 갱신',
                           ),
@@ -555,7 +568,7 @@ class _MainDashboardState extends State<MainDashboard> {
                             '총 ${_logs.length}개 로그',
                             style: TextStyle(
                               fontSize: 11,
-                              color: Colors.tealAccent.withOpacity(0.7),
+                              color: const Color(0xFF2C3E50).withOpacity(0.7),
                               fontWeight: FontWeight.w500,
                             ),
                           ),
@@ -571,11 +584,11 @@ class _MainDashboardState extends State<MainDashboard> {
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(Icons.lock_outline_rounded, color: Colors.white24, size: 32),
+                                    Icon(Icons.lock_outline_rounded, color: Colors.black26, size: 32),
                                     SizedBox(height: 12),
                                     Text(
                                       '로그인 후 실시간 콘솔 데이터를 확인하세요.',
-                                      style: TextStyle(color: Colors.white38, fontSize: 13),
+                                      style: TextStyle(color: Colors.black38, fontSize: 13),
                                     ),
                                   ],
                                 ),
@@ -586,7 +599,7 @@ class _MainDashboardState extends State<MainDashboard> {
                                   child: Padding(
                                     padding: EdgeInsets.symmetric(vertical: 40.0),
                                     child: CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.tealAccent),
+                                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF0288D1)),
                                     ),
                                   ),
                                 )
@@ -596,7 +609,7 @@ class _MainDashboardState extends State<MainDashboard> {
                                         padding: EdgeInsets.symmetric(vertical: 40.0),
                                         child: Text(
                                           '계측 이력이 존재하지 않습니다.',
-                                          style: TextStyle(color: Colors.white38),
+                                          style: TextStyle(color: Colors.black38),
                                         ),
                                       ),
                                     )
@@ -616,7 +629,7 @@ class _MainDashboardState extends State<MainDashboard> {
                                     final String status = isTrained == 'Y' ? '학습 완료' : (isTrained == 'C' ? '보정 완료' : '미계측');
                                     
                                     final String tag = log['sub_class_name'] != null ? 'BBOX' : 'POINT';
-                                    final Color tagColor = tag == 'POINT' ? Colors.amber : Colors.tealAccent;
+                                    final Color tagColor = tag == 'POINT' ? const Color(0xFFFFB74D) : const Color(0xFF81C784); // 파스텔 오렌지, 파스텔 그린
                                     
                                     final double confVal = (log['confidence'] as num?)?.toDouble() ?? 0.0;
                                     final String calculationTime = confVal > 0 ? '${(0.5 - confVal * 0.2).toStringAsFixed(2)}s' : '0.35s';
@@ -660,16 +673,16 @@ class _MainDashboardState extends State<MainDashboard> {
             Container(
               padding: const EdgeInsets.only(left: 16.0, right: 16.0, top: 16.0, bottom: 24.0),
               decoration: BoxDecoration(
-                color: const Color(0xFF16161E),
+                color: Colors.white,
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withOpacity(0.04),
                     blurRadius: 10,
                     offset: const Offset(0, -4),
                   ),
                 ],
                 border: const Border(
-                  top: BorderSide(color: Colors.white10, width: 1),
+                  top: BorderSide(color: Colors.black12, width: 1),
                 ),
               ),
               child: SafeArea(
@@ -690,18 +703,18 @@ class _MainDashboardState extends State<MainDashboard> {
                       );
                       _fetchLogs();
                     },
-                    icon: const Icon(Icons.videocam_rounded, size: 22),
+                    icon: const Icon(Icons.videocam_rounded, size: 22, color: Color(0xFF2C3E50)),
                     label: const Text(
                       '실시간 계측 시작',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.0),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1.0, color: Color(0xFF2C3E50)),
                     ),
                     style: ElevatedButton.styleFrom(
-                      foregroundColor: Colors.black,
-                      backgroundColor: Colors.tealAccent,
-                      elevation: 4,
-                      shadowColor: Colors.tealAccent.withOpacity(0.4),
+                      foregroundColor: const Color(0xFF2C3E50),
+                      backgroundColor: const Color(0xFFB3E5FC), // 파스텔 스카이블루
+                      elevation: 0,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
+                        side: const BorderSide(color: Color(0xFF81D4FA), width: 1.5), // 약간 더 진한 파스텔 하늘색 테두리
                       ),
                     ),
                   ),
@@ -811,12 +824,12 @@ class _MainDashboardState extends State<MainDashboard> {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E24),
+          color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+          border: Border.all(color: Colors.black.withOpacity(0.05), width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withOpacity(0.02),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -833,7 +846,7 @@ class _MainDashboardState extends State<MainDashboard> {
                   style: const TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white54,
+                    color: Colors.black45,
                     fontFamily: 'monospace',
                   ),
                 ),
@@ -861,7 +874,7 @@ class _MainDashboardState extends State<MainDashboard> {
               style: const TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: Color(0xFF2C3E50),
               ),
             ),
             const SizedBox(height: 4),
@@ -872,7 +885,7 @@ class _MainDashboardState extends State<MainDashboard> {
                   specs,
                   style: const TextStyle(
                     fontSize: 12,
-                    color: Colors.white38,
+                    color: Colors.black38,
                   ),
                 ),
                 Row(
@@ -881,7 +894,7 @@ class _MainDashboardState extends State<MainDashboard> {
                       width: 6,
                       height: 6,
                       decoration: const BoxDecoration(
-                        color: Colors.tealAccent,
+                        color: Color(0xFF4CAF50),
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -891,7 +904,7 @@ class _MainDashboardState extends State<MainDashboard> {
                       style: const TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
-                        color: Colors.tealAccent,
+                        color: Color(0xFF2E7D32),
                       ),
                     ),
                   ],
@@ -904,7 +917,7 @@ class _MainDashboardState extends State<MainDashboard> {
     );
   }
 
-  // 세련된 다크 테마 개발자 콘솔형 상세 정보 팝업창
+  // 세련된 파스텔 테마 상세 정보 팝업창
   void _showHistoryDetailsDialog(
     BuildContext context, {
     required String id,
@@ -918,10 +931,10 @@ class _MainDashboardState extends State<MainDashboard> {
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: const Color(0xFF1E1E24),
+          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: Colors.tealAccent.withOpacity(0.3), width: 1.5),
+            side: const BorderSide(color: Color(0xFFB3E5FC), width: 1.5),
           ),
           child: Padding(
             padding: const EdgeInsets.all(20.0),
@@ -935,14 +948,14 @@ class _MainDashboardState extends State<MainDashboard> {
                   children: [
                     Row(
                       children: [
-                        const Icon(Icons.terminal_rounded, color: Colors.tealAccent, size: 20),
+                        const Icon(Icons.terminal_rounded, color: Color(0xFF0288D1), size: 20),
                         const SizedBox(width: 8),
                         Text(
                           'DASHBOARD LOG SYSTEM',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w900,
-                            color: Colors.tealAccent.withOpacity(0.8),
+                            color: const Color(0xFF0288D1).withOpacity(0.8),
                             letterSpacing: 1.0,
                           ),
                         ),
@@ -950,33 +963,33 @@ class _MainDashboardState extends State<MainDashboard> {
                     ),
                     GestureDetector(
                       onTap: () => Navigator.of(context).pop(),
-                      child: const Icon(Icons.close_rounded, color: Colors.white38, size: 20),
+                      child: const Icon(Icons.close_rounded, color: Colors.black45, size: 20),
                     ),
                   ],
                 ),
-                const Divider(color: Colors.white10, height: 24, thickness: 1),
+                const Divider(color: Colors.black12, height: 24, thickness: 1),
                 
                 // Console Info Section
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.black.withOpacity(0.3),
+                    color: const Color(0xFFF1F8E9),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withOpacity(0.05)),
+                    border: Border.all(color: Colors.black12),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildConsoleRow('LOG_ID', id, color: Colors.amberAccent),
+                      _buildConsoleRow('LOG_ID', id, color: const Color(0xFFE65100)),
                       const SizedBox(height: 6),
-                      _buildConsoleRow('TARGET', title, color: Colors.white),
+                      _buildConsoleRow('TARGET', title, color: const Color(0xFF2C3E50)),
                       const SizedBox(height: 6),
-                      _buildConsoleRow('SPECS', specs, color: Colors.tealAccent),
+                      _buildConsoleRow('SPECS', specs, color: const Color(0xFF2E7D32)),
                       const SizedBox(height: 6),
-                      _buildConsoleRow('LATENCY', calculationTime, color: Colors.cyanAccent),
+                      _buildConsoleRow('LATENCY', calculationTime, color: const Color(0xFF006064)),
                       const SizedBox(height: 6),
-                      _buildConsoleRow('MODE_TAG', tag, color: tag == 'BBOX' ? Colors.tealAccent : Colors.amber),
+                      _buildConsoleRow('MODE_TAG', tag, color: tag == 'BBOX' ? const Color(0xFF2E7D32) : const Color(0xFFE65100)),
                     ],
                   ),
                 ),
@@ -988,7 +1001,7 @@ class _MainDashboardState extends State<MainDashboard> {
                   style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white38,
+                    color: Colors.black45,
                     letterSpacing: 1.0,
                   ),
                 ),
@@ -999,14 +1012,14 @@ class _MainDashboardState extends State<MainDashboard> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xFF0F0F12),
+                    color: const Color(0xFFF5F5F5),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white10),
+                    border: Border.all(color: Colors.black12),
                   ),
                   child: Text(
                     logMessage,
                     style: const TextStyle(
-                      color: Colors.tealAccent,
+                      color: Color(0xFF37474F),
                       fontSize: 11,
                       fontFamily: 'monospace',
                       height: 1.4,
@@ -1022,8 +1035,8 @@ class _MainDashboardState extends State<MainDashboard> {
                   child: ElevatedButton(
                     onPressed: () => Navigator.of(context).pop(),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.tealAccent,
-                      foregroundColor: Colors.black,
+                      backgroundColor: const Color(0xFFB3E5FC),
+                      foregroundColor: const Color(0xFF2C3E50),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -2653,12 +2666,16 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
     final bool isSensorConnected = DateTime.now().difference(_lastSensorUpdateTime).inSeconds < 3;
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: const Color(0xFFF8F9FA),
       appBar: AppBar(
-        backgroundColor: const Color(0xFF16161E),
-        title: Text(_isEditingMode ? '측정 데이터 검증 및 보정' : '실시간 ToF/LiDAR 거리 계측'),
+        backgroundColor: const Color(0xFFE3F2FD),
+        foregroundColor: const Color(0xFF2C3E50),
+        title: Text(
+          _isEditingMode ? '측정 데이터 검증 및 보정' : '실시간 ToF/LiDAR 거리 계측',
+          style: const TextStyle(color: Color(0xFF2C3E50), fontWeight: FontWeight.bold),
+        ),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.arrow_back, color: Color(0xFF2C3E50)),
           onPressed: () {
             if (_isEditingMode) {
               setState(() {
@@ -2681,14 +2698,14 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
                     fit: BoxFit.cover,
                   )
                 : (_controller == null || _initializeControllerFuture == null
-                    ? const Center(child: CircularProgressIndicator(color: Colors.tealAccent))
+                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF0288D1)))
                     : FutureBuilder<void>(
                         future: _initializeControllerFuture,
                         builder: (context, snapshot) {
                           if (snapshot.connectionState == ConnectionState.done) {
                             return CameraPreview(_controller!);
                           } else {
-                            return const Center(child: CircularProgressIndicator(color: Colors.tealAccent));
+                            return const Center(child: CircularProgressIndicator(color: Color(0xFF0288D1)));
                           }
                         },
                       )),
@@ -2749,26 +2766,26 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
                     width: 200,
                     height: 200,
                     decoration: BoxDecoration(
-                      border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.5), width: 2),
+                      border: Border.all(color: const Color(0xFFB3E5FC).withOpacity(0.5), width: 2),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: const Center(
-                      child: Icon(Icons.add, color: Colors.tealAccent, size: 40),
+                      child: Icon(Icons.add, color: Color(0xFF0288D1), size: 40),
                     ),
                   ),
                   const SizedBox(height: 16),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.7),
+                      color: Colors.white.withOpacity(0.9),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: isSensorConnected ? Colors.tealAccent : Colors.amberAccent,
+                        color: isSensorConnected ? const Color(0xFF81C784) : const Color(0xFFFFB74D),
                         width: 1.5,
                       ),
                       boxShadow: [
                         BoxShadow(
-                          color: (isSensorConnected ? Colors.tealAccent : Colors.amberAccent).withValues(alpha: 0.2),
+                          color: (isSensorConnected ? const Color(0xFF81C784) : const Color(0xFFFFB74D)).withOpacity(0.2),
                           blurRadius: 8,
                           spreadRadius: 1,
                         ),
@@ -2779,7 +2796,7 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
                           ? '🎯 센서 측정 거리: ${_liveDistance.toStringAsFixed(1)} mm (실시간)'
                           : '⚠️ 센서 연결 대기: ${_liveDistance.toStringAsFixed(1)} mm (시뮬레이션)',
                       style: TextStyle(
-                        color: isSensorConnected ? Colors.tealAccent : Colors.amberAccent,
+                        color: isSensorConnected ? const Color(0xFF2E7D32) : const Color(0xFFE65100),
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                         letterSpacing: 0.5,
@@ -2808,17 +2825,19 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
                               _activePointIndex = null;
                             });
                           },
-                          icon: const Icon(Icons.refresh_rounded, color: Colors.black),
+                          icon: const Icon(Icons.refresh_rounded, color: Color(0xFF2C3E50)),
                           label: const Text(
                             '🔄 다시 촬영',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black),
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF2C3E50)),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white70,
+                            backgroundColor: Colors.white,
+                            foregroundColor: const Color(0xFF2C3E50),
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(30),
                             ),
+                            side: const BorderSide(color: Color(0xFFB3E5FC), width: 1.5),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -2841,27 +2860,28 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
 
                               messenger.showSnackBar(
                                 const SnackBar(
-                                  content: Text('[SUCCESS] 보정된 ToF 센서 계측 로그가 Supabase에 최종 저장되었습니다.'),
-                                  backgroundColor: Colors.green,
+                                  content: Text('[SUCCESS] 보정된 ToF 센서 계측 로그가 Supabase에 최종 저장되었습니다.', style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold)),
+                                  backgroundColor: Color(0xFFE8F5E9),
                                 ),
                               );
                               navigator.pop();
                             } catch (e) {
                               messenger.showSnackBar(
                                 SnackBar(
-                                  content: Text('[ERROR] 최종 저장 실패: $e'),
-                                  backgroundColor: Colors.redAccent,
+                                  content: Text('[ERROR] 최종 저장 실패: $e', style: const TextStyle(color: Color(0xFFC62828), fontWeight: FontWeight.bold)),
+                                  backgroundColor: const Color(0xFFFFCDD2),
                                 ),
                               );
                             }
                           },
-                          icon: const Icon(Icons.check_circle_rounded, color: Colors.black),
+                          icon: const Icon(Icons.check_circle_rounded, color: Color(0xFF2C3E50)),
                           label: const Text(
                             '🎯 최종 확정 및 저장',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black),
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF2C3E50)),
                           ),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.tealAccent,
+                            backgroundColor: const Color(0xFFB3E5FC),
+                            foregroundColor: const Color(0xFF2C3E50),
                             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(30),
@@ -2896,23 +2916,25 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
                         } catch (e) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('[ERROR] 프레임 캡처 실패: $e'),
-                              backgroundColor: Colors.redAccent,
+                              content: Text('[ERROR] 프레임 캡처 실패: $e', style: const TextStyle(color: Color(0xFFC62828), fontWeight: FontWeight.bold)),
+                              backgroundColor: const Color(0xFFFFCDD2),
                             ),
                           );
                         }
                       },
-                      icon: const Icon(Icons.center_focus_strong_rounded, color: Colors.black),
+                      icon: const Icon(Icons.center_focus_strong_rounded, color: Color(0xFF2C3E50)),
                       label: const Text(
                         '📸 계측 프레임 캡처 및 편집',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black),
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF2C3E50)),
                       ),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.tealAccent,
+                        backgroundColor: const Color(0xFFB3E5FC),
+                        foregroundColor: const Color(0xFF2C3E50),
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(30),
                         ),
+                        side: const BorderSide(color: Color(0xFF81D4FA), width: 1.5),
                       ),
                     ),
             ),
@@ -2941,15 +2963,15 @@ class BBoxPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final rect = Rect.fromPoints(start, end);
 
-    // 1. BBox 내부 색상 채우기 (반투명 틸 컬러)
+    // 1. BBox 내부 색상 채우기 (반투명 파스텔 민트 컬러)
     final paintBox = Paint()
-      ..color = Colors.tealAccent.withValues(alpha: 0.15)
+      ..color = const Color(0xFFC8E6C9).withOpacity(0.25)
       ..style = PaintingStyle.fill;
     canvas.drawRect(rect, paintBox);
 
-    // 2. BBox 테두리 그리기
+    // 2. BBox 테두리 그리기 (부드러운 파스텔 민트)
     final paintBorder = Paint()
-      ..color = Colors.tealAccent
+      ..color = const Color(0xFF81C784)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.0;
     canvas.drawRect(rect, paintBorder);
@@ -2959,7 +2981,7 @@ class BBoxPainter extends CustomPainter {
       ..color = Colors.white
       ..style = PaintingStyle.fill;
     final paintHandleBorder = Paint()
-      ..color = Colors.tealAccent
+      ..color = const Color(0xFF81C784)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 3.0;
 
@@ -2973,7 +2995,7 @@ class BBoxPainter extends CustomPainter {
     final textSpan = TextSpan(
       text: '$objectName (${measurementValue.toStringAsFixed(1)} mm)',
       style: const TextStyle(
-        color: Colors.black,
+        color: Color(0xFF2C3E50), // 다크 차콜 글씨
         fontWeight: FontWeight.bold,
         fontSize: 13,
       ),
@@ -2984,7 +3006,7 @@ class BBoxPainter extends CustomPainter {
     );
     textPainter.layout();
 
-    // 텍스트 라벨 박스 배경
+    // 텍스트 라벨 박스 배경 (부드러운 파스텔 민트)
     final textRect = Rect.fromLTWH(
       start.dx,
       start.dy - textPainter.height - 10,
@@ -2992,7 +3014,7 @@ class BBoxPainter extends CustomPainter {
       textPainter.height + 6,
     );
     final paintTextBg = Paint()
-      ..color = Colors.tealAccent
+      ..color = const Color(0xFF81C784)
       ..style = PaintingStyle.fill;
     canvas.drawRRect(RRect.fromRectAndRadius(textRect, const Radius.circular(4)), paintTextBg);
 
