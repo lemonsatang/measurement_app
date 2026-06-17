@@ -92143,9 +92143,9 @@ if(q!=null)q.aA()
 try{q=r.r
 if(q!=null)q.gfJ().ap()}catch(s){}r.r=null
 r.PA()},
-PA(){this.xW(A.b(["ws://127.0.0.1:8081","ws://localhost:8081","ws://172.16.100.73:8081"],t.s),0)},
+PA(){this.xW(A.b(["ws://127.0.0.1:8081","ws://localhost:8081","ws://172.16.100.73:8081","wss://127.0.0.1:8081","wss://localhost:8081","wss://172.16.100.73:8081"],t.s),0)},
 xW(a,b){var s,r,q,p,o,n=this
-if(b>=3){n.r=null
+if(b>=6){n.r=null
 n.aj5()
 return}s=a[b]
 A.mR().$1("[Sensor Connection] ToF \uc6f9\uc18c\ucf13 \uc5f0\uacb0 \uc2dc\ub3c4: "+A.j(s))
