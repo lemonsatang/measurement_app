@@ -739,12 +739,12 @@ class _MainDashboardState extends State<MainDashboard> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
         decoration: BoxDecoration(
-          color: const Color(0xFF1E1E24),
+          color: const Color(0xFFEDF2F7), // 아주 옅고 부드러운 파스텔 블루-그레이 톤
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+          border: Border.all(color: Colors.black.withOpacity(0.04), width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.1),
+              color: Colors.black.withOpacity(0.02),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -764,13 +764,6 @@ class _MainDashboardState extends State<MainDashboard> {
                     decoration: BoxDecoration(
                       color: color,
                       shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: color.withOpacity(0.6),
-                          blurRadius: 4,
-                          spreadRadius: 1,
-                        ),
-                      ],
                     ),
                   ),
               ],
@@ -781,7 +774,7 @@ class _MainDashboardState extends State<MainDashboard> {
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Colors.white,
+                color: Color(0xFF2C3E50), // 다크 차콜 글씨
               ),
             ),
             const SizedBox(height: 4),
@@ -789,7 +782,7 @@ class _MainDashboardState extends State<MainDashboard> {
               label,
               style: const TextStyle(
                 fontSize: 10,
-                color: Colors.white38,
+                color: Colors.black54, // 밝은 배경에 적합한 회색 글씨
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -1064,10 +1057,10 @@ class _MainDashboardState extends State<MainDashboard> {
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: const Color(0xFF1E1E24),
+          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: Colors.tealAccent.withOpacity(0.3), width: 1.5),
+            side: const BorderSide(color: Color(0xFFB3E5FC), width: 1.5),
           ),
           child: Padding(
             padding: const EdgeInsets.all(20.0),
@@ -1077,38 +1070,38 @@ class _MainDashboardState extends State<MainDashboard> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.login_rounded, color: Colors.tealAccent, size: 20),
+                    const Icon(Icons.login_rounded, color: Color(0xFF0288D1), size: 20),
                     const SizedBox(width: 8),
-                    Text(
+                    const Text(
                       'SECURE LOGIN',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w900,
-                        color: Colors.tealAccent.withOpacity(0.8),
+                        color: Color(0xFF2C3E50),
                         letterSpacing: 1.0,
                       ),
                     ),
                   ],
                 ),
-                const Divider(color: Colors.white10, height: 24, thickness: 1),
+                const Divider(color: Colors.black12, height: 24, thickness: 1),
                 const Text(
                   '기존 PC 버전(tb_measurement_user) 계정으로 인증을 진행합니다.',
-                  style: TextStyle(color: Colors.white54, fontSize: 11),
+                  style: TextStyle(color: Color(0xFF546E7A), fontSize: 11),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: usernameController,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  style: const TextStyle(color: Color(0xFF2C3E50), fontSize: 13),
                   decoration: InputDecoration(
                     labelText: 'ID (Username)',
-                    labelStyle: const TextStyle(color: Colors.white30, fontSize: 12),
+                    labelStyle: const TextStyle(color: Colors.black38, fontSize: 12),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Colors.white10),
+                      borderSide: const BorderSide(color: Colors.black12),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Colors.tealAccent),
+                      borderSide: const BorderSide(color: Color(0xFFB3E5FC)),
                     ),
                   ),
                 ),
@@ -1116,17 +1109,17 @@ class _MainDashboardState extends State<MainDashboard> {
                 TextField(
                   controller: passwordController,
                   obscureText: true,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  style: const TextStyle(color: Color(0xFF2C3E50), fontSize: 13),
                   decoration: InputDecoration(
                     labelText: 'Password',
-                    labelStyle: const TextStyle(color: Colors.white30, fontSize: 12),
+                    labelStyle: const TextStyle(color: Colors.black38, fontSize: 12),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Colors.white10),
+                      borderSide: const BorderSide(color: Colors.black12),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Colors.tealAccent),
+                      borderSide: const BorderSide(color: Color(0xFFB3E5FC)),
                     ),
                   ),
                 ),
@@ -1142,8 +1135,8 @@ class _MainDashboardState extends State<MainDashboard> {
                       if (username.isEmpty || password.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('[ERROR] ID와 비밀번호를 모두 입력해주세요.'),
-                            backgroundColor: Colors.redAccent,
+                            content: Text('[ERROR] ID와 비밀번호를 모두 입력해주세요.', style: TextStyle(color: Color(0xFFC62828), fontWeight: FontWeight.bold)),
+                            backgroundColor: Color(0xFFFFCDD2),
                           ),
                         );
                         return;
@@ -1163,8 +1156,8 @@ class _MainDashboardState extends State<MainDashboard> {
                         if (userRow == null) {
                           messenger.showSnackBar(
                             const SnackBar(
-                              content: Text('[ERROR] 인증 실패: 존재하지 않는 계정입니다.'),
-                              backgroundColor: Colors.redAccent,
+                              content: Text('[ERROR] 인증 실패: 존재하지 않는 계정입니다.', style: TextStyle(color: Color(0xFFC62828), fontWeight: FontWeight.bold)),
+                              backgroundColor: Color(0xFFFFCDD2),
                             ),
                           );
                           return;
@@ -1174,8 +1167,8 @@ class _MainDashboardState extends State<MainDashboard> {
                         if (hashedPassword == null || !BCrypt.checkpw(password, hashedPassword)) {
                           messenger.showSnackBar(
                             const SnackBar(
-                              content: Text('[ERROR] 인증 실패: 비밀번호가 일치하지 않습니다.'),
-                              backgroundColor: Colors.redAccent,
+                              content: Text('[ERROR] 인증 실패: 비밀번호가 일치하지 않습니다.', style: TextStyle(color: Color(0xFFC62828), fontWeight: FontWeight.bold)),
+                              backgroundColor: Color(0xFFFFCDD2),
                             ),
                           );
                           return;
@@ -1195,25 +1188,26 @@ class _MainDashboardState extends State<MainDashboard> {
 
                         messenger.showSnackBar(
                           const SnackBar(
-                            content: Text('[SUCCESS] JMS 시스템 인증 성공'),
-                            backgroundColor: Colors.green,
+                            content: Text('[SUCCESS] JMS 시스템 인증 성공', style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold)),
+                            backgroundColor: Color(0xFFE8F5E9),
                           ),
                         );
                       } catch (e) {
                         messenger.showSnackBar(
                           SnackBar(
-                            content: Text('[ERROR] 인증 실패: $e'),
-                            backgroundColor: Colors.redAccent,
+                            content: Text('[ERROR] 인증 실패: $e', style: const TextStyle(color: Color(0xFFC62828), fontWeight: FontWeight.bold)),
+                            backgroundColor: const Color(0xFFFFCDD2),
                           ),
                         );
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.tealAccent,
-                      foregroundColor: Colors.black,
+                      backgroundColor: const Color(0xFFB3E5FC),
+                      foregroundColor: const Color(0xFF2C3E50),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
+                      elevation: 0,
                     ),
                     child: const Text(
                       '로그인',
@@ -1238,10 +1232,10 @@ class _MainDashboardState extends State<MainDashboard> {
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          backgroundColor: const Color(0xFF1E1E24),
+          backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
-            side: BorderSide(color: Colors.tealAccent.withOpacity(0.3), width: 1.5),
+            side: const BorderSide(color: Color(0xFFB3E5FC), width: 1.5),
           ),
           child: Padding(
             padding: const EdgeInsets.all(20.0),
@@ -1251,55 +1245,55 @@ class _MainDashboardState extends State<MainDashboard> {
               children: [
                 Row(
                   children: [
-                    const Icon(Icons.person_add_rounded, color: Colors.tealAccent, size: 20),
+                    const Icon(Icons.person_add_rounded, color: Color(0xFF0288D1), size: 20),
                     const SizedBox(width: 8),
-                    Text(
+                    const Text(
                       'CREATE ACCOUNT',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w900,
-                        color: Colors.tealAccent.withOpacity(0.8),
+                        color: Color(0xFF2C3E50),
                         letterSpacing: 1.0,
                       ),
                     ),
                   ],
                 ),
-                const Divider(color: Colors.white10, height: 24, thickness: 1),
+                const Divider(color: Colors.black12, height: 24, thickness: 1),
                 const Text(
                   'BCrypt 해싱 암호화 메커니즘을 공유하는 신규 계정을 생성합니다.',
-                  style: TextStyle(color: Colors.white54, fontSize: 11),
+                  style: TextStyle(color: Color(0xFF546E7A), fontSize: 11),
                 ),
                 const SizedBox(height: 16),
                 TextField(
                   controller: usernameController,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  style: const TextStyle(color: Color(0xFF2C3E50), fontSize: 13),
                   decoration: InputDecoration(
                     labelText: 'ID (Username)',
-                    labelStyle: const TextStyle(color: Colors.white30, fontSize: 12),
+                    labelStyle: const TextStyle(color: Colors.black38, fontSize: 12),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Colors.white10),
+                      borderSide: const BorderSide(color: Colors.black12),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Colors.tealAccent),
+                      borderSide: const BorderSide(color: Color(0xFFB3E5FC)),
                     ),
                   ),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: nameController,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  style: const TextStyle(color: Color(0xFF2C3E50), fontSize: 13),
                   decoration: InputDecoration(
                     labelText: 'Name (Real Name)',
-                    labelStyle: const TextStyle(color: Colors.white30, fontSize: 12),
+                    labelStyle: const TextStyle(color: Colors.black38, fontSize: 12),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Colors.white10),
+                      borderSide: const BorderSide(color: Colors.black12),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Colors.tealAccent),
+                      borderSide: const BorderSide(color: Color(0xFFB3E5FC)),
                     ),
                   ),
                 ),
@@ -1307,17 +1301,17 @@ class _MainDashboardState extends State<MainDashboard> {
                 TextField(
                   controller: passwordController,
                   obscureText: true,
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  style: const TextStyle(color: Color(0xFF2C3E50), fontSize: 13),
                   decoration: InputDecoration(
                     labelText: 'Password',
-                    labelStyle: const TextStyle(color: Colors.white30, fontSize: 12),
+                    labelStyle: const TextStyle(color: Colors.black38, fontSize: 12),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Colors.white10),
+                      borderSide: const BorderSide(color: Colors.black12),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: Colors.tealAccent),
+                      borderSide: const BorderSide(color: Color(0xFFB3E5FC)),
                     ),
                   ),
                 ),
@@ -1334,8 +1328,8 @@ class _MainDashboardState extends State<MainDashboard> {
                       if (username.isEmpty || name.isEmpty || password.isEmpty) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           const SnackBar(
-                            content: Text('[ERROR] 모든 정보를 올바르게 입력해주세요.'),
-                            backgroundColor: Colors.redAccent,
+                            content: Text('[ERROR] 모든 정보를 올바르게 입력해주세요.', style: TextStyle(color: Color(0xFFC62828), fontWeight: FontWeight.bold)),
+                            backgroundColor: Color(0xFFFFCDD2),
                           ),
                         );
                         return;
@@ -1356,8 +1350,8 @@ class _MainDashboardState extends State<MainDashboard> {
                         if (existingUser != null) {
                           messenger.showSnackBar(
                             const SnackBar(
-                              content: Text('[ERROR] 가입 실패: 이미 존재하는 ID입니다.'),
-                              backgroundColor: Colors.redAccent,
+                              content: Text('[ERROR] 가입 실패: 이미 존재하는 ID입니다.', style: TextStyle(color: Color(0xFFC62828), fontWeight: FontWeight.bold)),
+                              backgroundColor: Color(0xFFFFCDD2),
                             ),
                           );
                           return;
@@ -1376,25 +1370,26 @@ class _MainDashboardState extends State<MainDashboard> {
 
                         messenger.showSnackBar(
                           const SnackBar(
-                            content: Text('[SUCCESS] 신규 관리자 계정 생성 완료'),
-                            backgroundColor: Colors.green,
+                            content: Text('[SUCCESS] 신규 관리자 계정 생성 완료', style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold)),
+                            backgroundColor: Color(0xFFE8F5E9),
                           ),
                         );
                       } catch (e) {
                         messenger.showSnackBar(
                           SnackBar(
-                            content: Text('[ERROR] 계정 생성 실패: $e'),
-                            backgroundColor: Colors.redAccent,
+                            content: Text('[ERROR] 계정 생성 실패: $e', style: const TextStyle(color: Color(0xFFC62828), fontWeight: FontWeight.bold)),
+                            backgroundColor: const Color(0xFFFFCDD2),
                           ),
                         );
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.tealAccent,
-                      foregroundColor: Colors.black,
+                      backgroundColor: const Color(0xFFB3E5FC),
+                      foregroundColor: const Color(0xFF2C3E50),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
+                      elevation: 0,
                     ),
                     child: const Text(
                       '가입 완료',
