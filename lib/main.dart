@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -2437,8 +2438,10 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
 
   // 2. 촬영 후 검증 및 편집을 위한 인터랙티브 UI 상태 필드
   bool _isEditingMode = false; // 편집 화면 진입 여부
-  Offset _keypointStart = const Offset(120, 180); // BBox 드래그 좌상단 포인트
-  Offset _keypointEnd = const Offset(280, 320); // BBox 드래그 우하단 포인트
+  Offset _imageKeypointStart = const Offset(120, 180); // 원본 이미지 기준 BBox 좌상단 포인트
+  Offset _imageKeypointEnd = const Offset(280, 320); // 원본 이미지 기준 BBox 우하단 포인트
+  double? _imageWidth; // 캡처한 이미지의 원본 가로 해상도
+  double? _imageHeight; // 캡처한 이미지의 원본 세로 해상도
   int? _activePointIndex; // 현재 마우스/터치 드래그 중인 포인트 인덱스 (1: Start, 2: End)
   double _editedValue = 120.5; // 수동으로 보정된 실측 거리 (mm)
   final String _objectName = 'mouse'; // 물체 식별명
@@ -2605,7 +2608,7 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
 
   // 드래그앤드롭 좌표 변화에 따른 거리 값 실시간 동적 변환
   void _recalculateEditedValue() {
-    final double pixelDistance = (_keypointStart - _keypointEnd).distance;
+    final double pixelDistance = (_imageKeypointStart - _imageKeypointEnd).distance;
     // 픽셀 대각선 거리를 하드웨어 실측 mm로 환산하기 위한 상수 배율 팩터 (0.75) 적용
     _editedValue = pixelDistance * 0.75;
   }
@@ -2683,258 +2686,310 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
           },
         ),
       ),
-      body: Stack(
-        children: [
-          // 1. 카메라 프리뷰 백그라운드 혹은 촬영 정지화면 배치
-          Positioned.fill(
-            child: _isEditingMode && _capturedBytes != null
-                ? Image.memory(
-                    _capturedBytes!,
-                    fit: BoxFit.cover,
-                  )
-                : (_controller == null || _initializeControllerFuture == null
-                    ? const Center(child: CircularProgressIndicator(color: Color(0xFF0288D1)))
-                    : FutureBuilder<void>(
-                        future: _initializeControllerFuture,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState == ConnectionState.done) {
-                            return CameraPreview(_controller!);
-                          } else {
-                            return const Center(child: CircularProgressIndicator(color: Color(0xFF0288D1)));
-                          }
-                        },
-                      )),
-          ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final double screenWidth = constraints.maxWidth;
+          final double screenHeight = constraints.maxHeight;
 
-          // 2. 가상의 BBox & Keypoint 인터랙티브 에디터 오버레이 (편집 모드 시 렌더링)
-          if (_isEditingMode)
-            Positioned.fill(
-              child: GestureDetector(
-                onPanStart: (details) {
-                  final touchPos = details.localPosition;
-                  // 드래그 핸들 지점 반경 30px 범위 터치 확인
-                  final double distToStart = (touchPos - _keypointStart).distance;
-                  final double distToEnd = (touchPos - _keypointEnd).distance;
-                  
-                  if (distToStart < 30.0) {
-                    _activePointIndex = 1; // 좌상단 핸들 선택
-                  } else if (distToEnd < 30.0) {
-                    _activePointIndex = 2; // 우하단 핸들 선택
-                  } else {
-                    _activePointIndex = null;
-                  }
-                },
-                onPanUpdate: (details) {
-                  if (_activePointIndex == 1) {
-                    setState(() {
-                      _keypointStart = details.localPosition;
-                      _recalculateEditedValue();
-                    });
-                  } else if (_activePointIndex == 2) {
-                    setState(() {
-                      _keypointEnd = details.localPosition;
-                      _recalculateEditedValue();
-                    });
-                  }
-                },
-                onPanEnd: (details) {
-                  _activePointIndex = null;
-                },
-                child: CustomPaint(
-                  painter: BBoxPainter(
-                    start: _keypointStart,
-                    end: _keypointEnd,
-                    objectName: _objectName,
-                    measurementValue: _editedValue,
-                  ),
-                  size: Size.infinite,
-                ),
-              ),
-            )
-          else
-            // 3. 조준선 크로스헤어 + 실시간 센서 거리 디스플레이 (일반 뷰 모드 시 렌더링)
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 200,
-                    height: 200,
-                    decoration: BoxDecoration(
-                      border: Border.all(color: const Color(0xFFB3E5FC).withOpacity(0.5), width: 2),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Center(
-                      child: Icon(Icons.add, color: Color(0xFF0288D1), size: 40),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.9),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: isSensorConnected ? const Color(0xFF81C784) : const Color(0xFFFFB74D),
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: (isSensorConnected ? const Color(0xFF81C784) : const Color(0xFFFFB74D)).withOpacity(0.2),
-                          blurRadius: 8,
-                          spreadRadius: 1,
-                        ),
-                      ],
-                    ),
-                    child: Text(
-                      isSensorConnected
-                          ? '🎯 센서 측정 거리: ${_liveDistance.toStringAsFixed(1)} mm (실시간)'
-                          : '⚠️ 센서 연결 대기: ${_liveDistance.toStringAsFixed(1)} mm (시뮬레이션)',
-                      style: TextStyle(
-                        color: isSensorConnected ? const Color(0xFF2E7D32) : const Color(0xFFE65100),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                        letterSpacing: 0.5,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          // 캡처된 이미지가 없거나 크기 정보가 없으면 기본값 처리
+          final double imgW = _imageWidth ?? screenWidth;
+          final double imgH = _imageHeight ?? screenHeight;
 
-          // 4. 하단 제어 및 서브밋 버튼들
-          Positioned(
-            left: 20,
-            right: 20,
-            bottom: 30,
-            child: Center(
-              child: _isEditingMode
-                  ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        ElevatedButton.icon(
-                          onPressed: () {
-                            setState(() {
-                              _isEditingMode = false;
-                              _capturedBytes = null;
-                              _activePointIndex = null;
-                            });
-                          },
-                          icon: const Icon(Icons.refresh_rounded, color: Color(0xFF2C3E50)),
-                          label: const Text(
-                            '🔄 다시 촬영',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF2C3E50)),
+          // BoxFit.contain 비율(scale) 계산
+          final double scale = math.min(screenWidth / imgW, screenHeight / imgH);
+          
+          // 화면 중앙 정렬을 위한 이미지 좌상단 오프셋(마진) 계산
+          final double offsetX = (screenWidth - imgW * scale) / 2;
+          final double offsetY = (screenHeight - imgH * scale) / 2;
+
+          // 원본 이미지 좌표를 화면에 표시할 핏(Fit) 좌표로 스케일링
+          final Offset keypointStart = Offset(
+            offsetX + _imageKeypointStart.dx * scale,
+            offsetY + _imageKeypointStart.dy * scale,
+          );
+          final Offset keypointEnd = Offset(
+            offsetX + _imageKeypointEnd.dx * scale,
+            offsetY + _imageKeypointEnd.dy * scale,
+          );
+
+          return Stack(
+            children: [
+              // 1. 카메라 프리뷰 백그라운드 혹은 촬영 정지화면 배치
+              Positioned.fill(
+                child: _isEditingMode && _capturedBytes != null
+                    ? Center(
+                        child: Container(
+                          width: imgW * scale,
+                          height: imgH * scale,
+                          child: Image.memory(
+                            _capturedBytes!,
+                            fit: BoxFit.fill,
                           ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.white,
-                            foregroundColor: const Color(0xFF2C3E50),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(30),
+                        ),
+                      )
+                    : (_controller == null || _initializeControllerFuture == null
+                        ? const Center(child: CircularProgressIndicator(color: Color(0xFF0288D1)))
+                        : FutureBuilder<void>(
+                            future: _initializeControllerFuture,
+                            builder: (context, snapshot) {
+                              if (snapshot.connectionState == ConnectionState.done) {
+                                return CameraPreview(_controller!);
+                              } else {
+                                return const Center(child: CircularProgressIndicator(color: Color(0xFF0288D1)));
+                              }
+                            },
+                          )),
+              ),
+
+              // 2. 가상의 BBox & Keypoint 인터랙티브 에디터 오버레이 (편집 모드 시 렌더링)
+              if (_isEditingMode)
+                Positioned.fill(
+                  child: GestureDetector(
+                    onPanStart: (details) {
+                      final touchPos = details.localPosition;
+                      // 드래그 핸들 지점 반경 30px 범위 터치 확인
+                      final double distToStart = (touchPos - keypointStart).distance;
+                      final double distToEnd = (touchPos - keypointEnd).distance;
+                      
+                      if (distToStart < 30.0) {
+                        _activePointIndex = 1; // 좌상단 핸들 선택
+                      } else if (distToEnd < 30.0) {
+                        _activePointIndex = 2; // 우하단 핸들 선택
+                      } else {
+                        _activePointIndex = null;
+                      }
+                    },
+                    onPanUpdate: (details) {
+                      if (_activePointIndex == null) return;
+                      
+                      final touchPos = details.localPosition;
+                      double imgX = (touchPos.dx - offsetX) / scale;
+                      double imgY = (touchPos.dy - offsetY) / scale;
+                      
+                      // 이미지 경계선 밖으로 나가지 않도록 0 ~ imgW, 0 ~ imgH 범위로 Clamp 적용
+                      imgX = imgX.clamp(0.0, imgW);
+                      imgY = imgY.clamp(0.0, imgH);
+
+                      setState(() {
+                        if (_activePointIndex == 1) {
+                          _imageKeypointStart = Offset(imgX, imgY);
+                        } else if (_activePointIndex == 2) {
+                          _imageKeypointEnd = Offset(imgX, imgY);
+                        }
+                        _recalculateEditedValue();
+                      });
+                    },
+                    onPanEnd: (details) {
+                      _activePointIndex = null;
+                    },
+                    child: CustomPaint(
+                      painter: BBoxPainter(
+                        start: keypointStart,
+                        end: keypointEnd,
+                        objectName: _objectName,
+                        measurementValue: _editedValue,
+                      ),
+                      size: Size.infinite,
+                    ),
+                  ),
+                )
+              else
+                // 3. 조준선 크로스헤어 + 실시간 센서 거리 디스플레이 (일반 뷰 모드 시 렌더링)
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 200,
+                        height: 200,
+                        decoration: BoxDecoration(
+                          border: Border.all(color: const Color(0xFFB3E5FC).withOpacity(0.5), width: 2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.add, color: Color(0xFF0288D1), size: 40),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSensorConnected ? const Color(0xFF81C784) : const Color(0xFFFFB74D),
+                            width: 1.5,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: (isSensorConnected ? const Color(0xFF81C784) : const Color(0xFFFFB74D)).withOpacity(0.2),
+                              blurRadius: 8,
+                              spreadRadius: 1,
                             ),
-                            side: const BorderSide(color: Color(0xFFB3E5FC), width: 1.5),
+                          ],
+                        ),
+                        child: Text(
+                          isSensorConnected
+                              ? '🎯 센서 측정 거리: ${_liveDistance.toStringAsFixed(1)} mm (실시간)'
+                              : '⚠️ 센서 연결 대기: ${_liveDistance.toStringAsFixed(1)} mm (시뮬레이션)',
+                          style: TextStyle(
+                            color: isSensorConnected ? const Color(0xFF2E7D32) : const Color(0xFFE65100),
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                            letterSpacing: 0.5,
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        ElevatedButton.icon(
-                          onPressed: () async {
-                            final messenger = ScaffoldMessenger.of(context);
-                            final navigator = Navigator.of(context);
+                      ),
+                    ],
+                  ),
+                ),
 
-                            try {
-                              final supabase = Supabase.instance.client;
-
-                              // 최종 보정된 거리를 Supabase 'tb_measurement' 테이블에 적재
-                              await supabase.from('tb_measurement').insert({
-                                'name': _objectName,
-                                'measurement_value': double.parse(_editedValue.toStringAsFixed(1)),
-                                'confidence': 0.92,
-                                'is_trained': 'N',
-                                'username': widget.loggedInUserId,
-                              });
-
-                              messenger.showSnackBar(
-                                const SnackBar(
-                                  content: Text('[SUCCESS] 보정된 ToF 센서 계측 로그가 Supabase에 최종 저장되었습니다.', style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold)),
-                                  backgroundColor: Color(0xFFE8F5E9),
+              // 4. 하단 제어 및 서브밋 버튼들
+              Positioned(
+                left: 20,
+                right: 20,
+                bottom: 30,
+                child: Center(
+                  child: _isEditingMode
+                      ? Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            ElevatedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _isEditingMode = false;
+                                  _capturedBytes = null;
+                                  _activePointIndex = null;
+                                });
+                              },
+                              icon: const Icon(Icons.refresh_rounded, color: Color(0xFF2C3E50)),
+                              label: const Text(
+                                '🔄 다시 촬영',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF2C3E50)),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white,
+                                foregroundColor: const Color(0xFF2C3E50),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
                                 ),
-                              );
-                              navigator.pop();
+                                side: const BorderSide(color: Color(0xFFB3E5FC), width: 1.5),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            ElevatedButton.icon(
+                              onPressed: () async {
+                                final messenger = ScaffoldMessenger.of(context);
+                                final navigator = Navigator.of(context);
+
+                                try {
+                                  final supabase = Supabase.instance.client;
+
+                                  // 최종 보정된 거리를 Supabase 'tb_measurement' 테이블에 적재
+                                  await supabase.from('tb_measurement').insert({
+                                    'name': _objectName,
+                                    'measurement_value': double.parse(_editedValue.toStringAsFixed(1)),
+                                    'confidence': 0.92,
+                                    'is_trained': 'N',
+                                    'username': widget.loggedInUserId,
+                                  });
+
+                                  messenger.showSnackBar(
+                                    const SnackBar(
+                                      content: Text('[SUCCESS] 보정된 ToF 센서 계측 로그가 Supabase에 최종 저장되었습니다.', style: TextStyle(color: Color(0xFF2E7D32), fontWeight: FontWeight.bold)),
+                                      backgroundColor: Color(0xFFE8F5E9),
+                                    ),
+                                  );
+                                  navigator.pop();
+                                } catch (e) {
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Text('[ERROR] 최종 저장 실패: $e', style: const TextStyle(color: Color(0xFFC62828), fontWeight: FontWeight.bold)),
+                                      backgroundColor: const Color(0xFFFFCDD2),
+                                    ),
+                                  );
+                                }
+                              },
+                              icon: const Icon(Icons.check_circle_rounded, color: Color(0xFF2C3E50)),
+                              label: const Text(
+                                '🎯 최종 확정 및 저장',
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF2C3E50)),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFFB3E5FC),
+                                foregroundColor: const Color(0xFF2C3E50),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(30),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                      : ElevatedButton.icon(
+                          onPressed: () async {
+                            if (_controller == null || !_controller!.value.isInitialized) {
+                              return;
+                            }
+                            try {
+                              // 1. 카메라 현재 프레임 캡처
+                              final XFile file = await _controller!.takePicture();
+                              final Uint8List bytes = await file.readAsBytes();
+
+                              // 2. 이미지 크기 비동기 디코딩
+                              final ui.Codec codec = await ui.instantiateImageCodec(bytes);
+                              final ui.FrameInfo fi = await codec.getNextFrame();
+                              final double imgW = fi.image.width.toDouble();
+                              final double imgH = fi.image.height.toDouble();
+
+                              // 3. 상태 갱신하여 프리즈(Freeze) 및 편집 모드 진입
+                              setState(() {
+                                _capturedBytes = bytes;
+                                _imageWidth = imgW;
+                                _imageHeight = imgH;
+                                _isEditingMode = true;
+                                _editedValue = _liveDistance; // 스냅샷 시점의 ToF 거리 고정
+
+                                // 초기 드래그 점들의 위치 설정 (원본 이미지의 중앙 부근에 배치)
+                                _imageKeypointStart = Offset(imgW * 0.3, imgH * 0.4);
+                                
+                                // ToF 거리를 픽셀 좌표 스케일로 역산하여 BBox 우하단 핸들 기본 크기 매핑
+                                final double initialPixelDist = _editedValue / 0.75;
+                                _imageKeypointEnd = Offset(
+                                  (_imageKeypointStart.dx + initialPixelDist * 0.707).clamp(0.0, imgW),
+                                  (_imageKeypointStart.dy + initialPixelDist * 0.707).clamp(0.0, imgH),
+                                );
+                              });
                             } catch (e) {
-                              messenger.showSnackBar(
+                              ScaffoldMessenger.of(context).showSnackBar(
                                 SnackBar(
-                                  content: Text('[ERROR] 최종 저장 실패: $e', style: const TextStyle(color: Color(0xFFC62828), fontWeight: FontWeight.bold)),
+                                  content: Text('[ERROR] 프레임 캡처 실패: $e', style: const TextStyle(color: Color(0xFFC62828), fontWeight: FontWeight.bold)),
                                   backgroundColor: const Color(0xFFFFCDD2),
                                 ),
                               );
                             }
                           },
-                          icon: const Icon(Icons.check_circle_rounded, color: Color(0xFF2C3E50)),
+                          icon: const Icon(Icons.center_focus_strong_rounded, color: Color(0xFF2C3E50)),
                           label: const Text(
-                            '🎯 최종 확정 및 저장',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Color(0xFF2C3E50)),
+                            '📸 계측 프레임 캡처 및 편집',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF2C3E50)),
                           ),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: const Color(0xFFB3E5FC),
                             foregroundColor: const Color(0xFF2C3E50),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(30),
                             ),
+                            side: const BorderSide(color: Color(0xFF81D4FA), width: 1.5),
                           ),
                         ),
-                      ],
-                    )
-                  : ElevatedButton.icon(
-                      onPressed: () async {
-                        if (_controller == null || !_controller!.value.isInitialized) {
-                          return;
-                        }
-                        try {
-                          // 1. 카메라 현재 프레임 캡처
-                          final XFile file = await _controller!.takePicture();
-                          final Uint8List bytes = await file.readAsBytes();
-
-                          // 2. 상태 갱신하여 프리즈(Freeze) 및 편집 모드 진입
-                          setState(() {
-                            _capturedBytes = bytes;
-                            _isEditingMode = true;
-                            _editedValue = _liveDistance; // 스냅샷 시점의 ToF 거리 고정
-
-                            // ToF 거리를 픽셀 좌표 스케일로 역산하여 BBox 우하단 핸들 기본 크기 매핑
-                            final double initialPixelDist = _editedValue / 0.75;
-                            _keypointEnd = Offset(
-                              _keypointStart.dx + initialPixelDist * 0.707,
-                              _keypointStart.dy + initialPixelDist * 0.707,
-                            );
-                          });
-                        } catch (e) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('[ERROR] 프레임 캡처 실패: $e', style: const TextStyle(color: Color(0xFFC62828), fontWeight: FontWeight.bold)),
-                              backgroundColor: const Color(0xFFFFCDD2),
-                            ),
-                          );
-                        }
-                      },
-                      icon: const Icon(Icons.center_focus_strong_rounded, color: Color(0xFF2C3E50)),
-                      label: const Text(
-                        '📸 계측 프레임 캡처 및 편집',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Color(0xFF2C3E50)),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFB3E5FC),
-                        foregroundColor: const Color(0xFF2C3E50),
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        side: const BorderSide(color: Color(0xFF81D4FA), width: 1.5),
-                      ),
-                    ),
-            ),
-          ),
-        ],
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
