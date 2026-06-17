@@ -2425,6 +2425,14 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
   StreamSubscription? _wsSubscription;
   double _liveDistance = 120.5; // 센서 수신 거리의 기본값 초기화 (mm)
 
+  // 2. 촬영 후 검증 및 편집을 위한 인터랙티브 UI 상태 필드
+  bool _isEditingMode = false; // 편집 화면 진입 여부
+  Offset _keypointStart = const Offset(120, 180); // BBox 드래그 좌상단 포인트
+  Offset _keypointEnd = const Offset(280, 320); // BBox 드래그 우하단 포인트
+  int? _activePointIndex; // 현재 마우스/터치 드래그 중인 포인트 인덱스 (1: Start, 2: End)
+  double _editedValue = 120.5; // 수동으로 보정된 실측 거리 (mm)
+  final String _objectName = 'mouse'; // 물체 식별명
+
   @override
   void initState() {
     super.initState();
@@ -2448,7 +2456,7 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
     }
   }
 
-  // 2. 진짜 하드웨어 ToF/LiDAR 센서 스트림 구독 (EventChannel + WebSocket 자동 연동)
+  // 진짜 하드웨어 ToF/LiDAR 센서 스트림 구독 (EventChannel + WebSocket 자동 연동)
   void _startRealSensorStream() {
     _sensorSubscription?.cancel(); // 중복 구독 방지
     _wsSubscription?.cancel();
@@ -2541,6 +2549,13 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
     });
   }
 
+  // 드래그앤드롭 좌표 변화에 따른 거리 값 실시간 동적 변환
+  void _recalculateEditedValue() {
+    final double pixelDistance = (_keypointStart - _keypointEnd).distance;
+    // 픽셀 대각선 거리를 하드웨어 실측 mm로 환산하기 위한 상수 배율 팩터 (0.75) 적용
+    _editedValue = pixelDistance * 0.75;
+  }
+
   Future<void> _initializeCamera() async {
     try {
       final cameras = await availableCameras();
@@ -2568,7 +2583,7 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
     }
   }
 
-  // 3. 철저한 메모리 누수 방지 (가장 중요)
+  // 철저한 메모리 누수 방지 (가장 중요)
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this); // 라이프사이클 옵저버 해제
@@ -2589,14 +2604,23 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
       backgroundColor: Colors.black,
       appBar: AppBar(
         backgroundColor: const Color(0xFF16161E),
-        title: const Text('실시간 ToF/LiDAR 거리 계측'),
+        title: Text(_isEditingMode ? '측정 데이터 검증 및 보정' : '실시간 ToF/LiDAR 거리 계측'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
+          onPressed: () {
+            if (_isEditingMode) {
+              setState(() {
+                _isEditingMode = false;
+              });
+            } else {
+              Navigator.of(context).pop();
+            }
+          },
         ),
       ),
       body: Stack(
         children: [
+          // 1. 카메라 프리뷰 백그라운드 배치
           Positioned.fill(
             child: _controller == null || _initializeControllerFuture == null
                 ? const Center(child: CircularProgressIndicator(color: Colors.tealAccent))
@@ -2611,105 +2635,268 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
                     },
                   ),
           ),
-          // 중앙 크로스헤어 + 실시간 센서 거리 디스플레이
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 200,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.5), width: 2),
-                    borderRadius: BorderRadius.circular(12),
+
+          // 2. 가상의 BBox & Keypoint 인터랙티브 에디터 오버레이 (편집 모드 시 렌더링)
+          if (_isEditingMode)
+            Positioned.fill(
+              child: GestureDetector(
+                onPanStart: (details) {
+                  final touchPos = details.localPosition;
+                  // 드래그 핸들 지점 반경 30px 범위 터치 확인
+                  final double distToStart = (touchPos - _keypointStart).distance;
+                  final double distToEnd = (touchPos - _keypointEnd).distance;
+                  
+                  if (distToStart < 30.0) {
+                    _activePointIndex = 1; // 좌상단 핸들 선택
+                  } else if (distToEnd < 30.0) {
+                    _activePointIndex = 2; // 우하단 핸들 선택
+                  } else {
+                    _activePointIndex = null;
+                  }
+                },
+                onPanUpdate: (details) {
+                  if (_activePointIndex == 1) {
+                    setState(() {
+                      _keypointStart = details.localPosition;
+                      _recalculateEditedValue();
+                    });
+                  } else if (_activePointIndex == 2) {
+                    setState(() {
+                      _keypointEnd = details.localPosition;
+                      _recalculateEditedValue();
+                    });
+                  }
+                },
+                onPanEnd: (details) {
+                  _activePointIndex = null;
+                },
+                child: CustomPaint(
+                  painter: BBoxPainter(
+                    start: _keypointStart,
+                    end: _keypointEnd,
+                    objectName: _objectName,
+                    measurementValue: _editedValue,
                   ),
-                  child: const Center(
-                    child: Icon(Icons.add, color: Colors.tealAccent, size: 40),
-                  ),
+                  size: Size.infinite,
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.7),
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: Colors.tealAccent, width: 1.5),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.tealAccent.withValues(alpha: 0.2),
-                        blurRadius: 8,
-                        spreadRadius: 1,
-                      ),
-                    ],
+              ),
+            )
+          else
+            // 3. 조준선 크로스헤어 + 실시간 센서 거리 디스플레이 (일반 뷰 모드 시 렌더링)
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 200,
+                    height: 200,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.tealAccent.withValues(alpha: 0.5), width: 2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Center(
+                      child: Icon(Icons.add, color: Colors.tealAccent, size: 40),
+                    ),
                   ),
-                  child: Text(
-                    '🎯 센서 측정 거리: ${_liveDistance.toStringAsFixed(1)} mm',
-                    style: const TextStyle(
-                      color: Colors.tealAccent,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                      letterSpacing: 0.5,
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.tealAccent, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.tealAccent.withValues(alpha: 0.2),
+                          blurRadius: 8,
+                          spreadRadius: 1,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      '🎯 센서 측정 거리: ${_liveDistance.toStringAsFixed(1)} mm',
+                      style: const TextStyle(
+                        color: Colors.tealAccent,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        letterSpacing: 0.5,
                     ),
                   ),
                 ),
               ],
             ),
           ),
+
+          // 4. 하단 제어 및 서브밋 버튼들
           Positioned(
             left: 20,
             right: 20,
             bottom: 30,
             child: Center(
-              child: ElevatedButton.icon(
-                onPressed: () async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  final navigator = Navigator.of(context);
+              child: _isEditingMode
+                  ? ElevatedButton.icon(
+                      onPressed: () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        final navigator = Navigator.of(context);
 
-                  try {
-                    final supabase = Supabase.instance.client;
+                        try {
+                          final supabase = Supabase.instance.client;
 
-                    // 3. UI 및 Supabase INSERT 스키마 확장 (measurement_val 컬럼에 실시간 센서 거리 저장)
-                    await supabase.from('tb_measurement').insert({
-                      'name': 'mouse',
-                      'measurement_value': double.parse(_liveDistance.toStringAsFixed(1)),
-                      'confidence': 0.92,
-                      'is_trained': 'N',
-                      'username': widget.loggedInUserId,
-                    });
+                          // 최종 보정된 거리를 Supabase 'tb_measurement' 테이블에 적재
+                          await supabase.from('tb_measurement').insert({
+                            'name': _objectName,
+                            'measurement_value': double.parse(_editedValue.toStringAsFixed(1)),
+                            'confidence': 0.92,
+                            'is_trained': 'N',
+                            'username': widget.loggedInUserId,
+                          });
 
-                    messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text('[SUCCESS] ToF/LiDAR 센서 계측 로그가 Supabase에 저장되었습니다.'),
-                        backgroundColor: Colors.green,
+                          messenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('[SUCCESS] 보정된 ToF 센서 계측 로그가 Supabase에 최종 저장되었습니다.'),
+                              backgroundColor: Colors.green,
+                            ),
+                          );
+                          navigator.pop();
+                        } catch (e) {
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text('[ERROR] 최종 저장 실패: $e'),
+                              backgroundColor: Colors.redAccent,
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.check_circle_rounded, color: Colors.black),
+                      label: const Text(
+                        '🎯 최종 확정 및 저장',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black),
                       ),
-                    );
-                    navigator.pop();
-                  } catch (e) {
-                    messenger.showSnackBar(
-                      SnackBar(
-                        content: Text('[ERROR] 로그 전송 실패: $e'),
-                        backgroundColor: Colors.redAccent,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.tealAccent,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
                       ),
-                    );
-                  }
-                },
-                icon: const Icon(Icons.gps_fixed_rounded, color: Colors.black),
-                label: const Text(
-                  '🎯 센서 계측 및 로그 전송',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.tealAccent,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                ),
-              ),
+                    )
+                  : ElevatedButton.icon(
+                      onPressed: () {
+                        // 즉시 적재를 중단하고, 현재 ToF 거리 값으로 편집 모드 동기화 및 진입
+                        setState(() {
+                          _isEditingMode = true;
+                          _editedValue = _liveDistance;
+                          
+                          // ToF 거리를 픽셀 좌표 스케일로 역산하여 BBox 우하단 핸들 기본 크기 매핑
+                          final double initialPixelDist = _editedValue / 0.75;
+                          _keypointEnd = Offset(
+                            _keypointStart.dx + initialPixelDist * 0.707,
+                            _keypointStart.dy + initialPixelDist * 0.707,
+                          );
+                        });
+                      },
+                      icon: const Icon(Icons.center_focus_strong_rounded, color: Colors.black),
+                      label: const Text(
+                        '📸 계측 프레임 캡처 및 편집',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.tealAccent,
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                      ),
+                    ),
             ),
           ),
         ],
       ),
     );
+  }
+}
+
+// BBox와 Keypoint를 그리기 위한 CustomPainter 클래스
+class BBoxPainter extends CustomPainter {
+  final Offset start;
+  final Offset end;
+  final String objectName;
+  final double measurementValue;
+
+  BBoxPainter({
+    required this.start,
+    required this.end,
+    required this.objectName,
+    required this.measurementValue,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Rect.fromPoints(start, end);
+
+    // 1. BBox 내부 색상 채우기 (반투명 틸 컬러)
+    final paintBox = Paint()
+      ..color = Colors.tealAccent.withValues(alpha: 0.15)
+      ..style = PaintingStyle.fill;
+    canvas.drawRect(rect, paintBox);
+
+    // 2. BBox 테두리 그리기
+    final paintBorder = Paint()
+      ..color = Colors.tealAccent
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.0;
+    canvas.drawRect(rect, paintBorder);
+
+    // 3. 드래그 가능한 양방향 Keypoint 조절 핸들 그리기
+    final paintHandle = Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.fill;
+    final paintHandleBorder = Paint()
+      ..color = Colors.tealAccent
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0;
+
+    canvas.drawCircle(start, 8.0, paintHandle);
+    canvas.drawCircle(start, 8.0, paintHandleBorder);
+
+    canvas.drawCircle(end, 8.0, paintHandle);
+    canvas.drawCircle(end, 8.0, paintHandleBorder);
+
+    // 4. 물체명 및 실시간 보정 길이 오버레이 텍스트 드로잉
+    final textSpan = TextSpan(
+      text: '$objectName (${measurementValue.toStringAsFixed(1)} mm)',
+      style: const TextStyle(
+        color: Colors.black,
+        fontWeight: FontWeight.bold,
+        fontSize: 13,
+      ),
+    );
+    final textPainter = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    );
+    textPainter.layout();
+
+    // 텍스트 라벨 박스 배경
+    final textRect = Rect.fromLTWH(
+      start.dx,
+      start.dy - textPainter.height - 10,
+      textPainter.width + 12,
+      textPainter.height + 6,
+    );
+    final paintTextBg = Paint()
+      ..color = Colors.tealAccent
+      ..style = PaintingStyle.fill;
+    canvas.drawRRect(RRect.fromRectAndRadius(textRect, const Radius.circular(4)), paintTextBg);
+
+    // 텍스트 그리기
+    textPainter.paint(canvas, Offset(start.dx + 6, start.dy - textPainter.height - 7));
+  }
+
+  @override
+  bool shouldRepaint(covariant BBoxPainter oldDelegate) {
+    return oldDelegate.start != start ||
+        oldDelegate.end != end ||
+        oldDelegate.measurementValue != measurementValue;
   }
 }
