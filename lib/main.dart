@@ -1,9 +1,11 @@
 import 'dart:io';
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math' as math;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:bcrypt/bcrypt.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -2416,9 +2418,11 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
 
-  // 1. ToF/LiDAR 하드웨어 센서 기기 통신 스트림을 위한 EventChannel 정의
+  // 1. ToF/LiDAR 하드웨어 센서 기기 통신 스트림을 위한 EventChannel 및 웹소켓 스트림 정의
   static const EventChannel _sensorEventChannel = EventChannel('com.fishlen.measurement/sensor');
   StreamSubscription? _sensorSubscription;
+  WebSocket? _webSocket;
+  StreamSubscription? _wsSubscription;
   double _liveDistance = 120.5; // 센서 수신 거리의 기본값 초기화 (mm)
 
   @override
@@ -2426,36 +2430,115 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
     super.initState();
     WidgetsBinding.instance.addObserver(this); // 2중 안전 장치: 앱 라이프사이클 옵저버 추가
     _initializeCamera();
-    _startRealSensorStream(); // 진짜 하드웨어 센서 스트림 연결
+    _startRealSensorStream(); // 진짜 하드웨어 센서 스트림 연결 (EventChannel + WebSocket)
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // 앱이 백그라운드로 진입할 경우 센서 스트림 구독을 일시 중단하여 누수 예방
+    // 앱이 백그라운드로 진입할 경우 센서 스트림 및 소켓 구독을 일시 중단하여 누수 예방
     if (state == AppLifecycleState.paused || state == AppLifecycleState.inactive) {
       _sensorSubscription?.cancel();
       _sensorSubscription = null;
+      _wsSubscription?.cancel();
+      _wsSubscription = null;
+      _webSocket?.close();
+      _webSocket = null;
     } else if (state == AppLifecycleState.resumed) {
       _startRealSensorStream();
     }
   }
 
-  // 2. 진짜 하드웨어 ToF/LiDAR 센서 스트림 구독
+  // 2. 진짜 하드웨어 ToF/LiDAR 센서 스트림 구독 (EventChannel + WebSocket 자동 연동)
   void _startRealSensorStream() {
     _sensorSubscription?.cancel(); // 중복 구독 방지
-    _sensorSubscription = _sensorEventChannel.receiveBroadcastStream().listen(
-      (dynamic event) {
-        if (mounted && event is num) {
-          setState(() {
-            // 하드웨어 3D 센서 레이캐스팅으로부터 수신한 실제 물리 거리값 매핑
-            _liveDistance = event.toDouble();
-          });
+    _wsSubscription?.cancel();
+    _webSocket?.close();
+    _webSocket = null;
+
+    // 2-1. 모바일 앱 환경일 경우 EventChannel 스트림 구독 (LiDAR/ToF 네이티브 플러그인 대응)
+    if (!kIsWeb) {
+      _sensorSubscription = _sensorEventChannel.receiveBroadcastStream().listen(
+        (dynamic event) {
+          if (mounted && event is num) {
+            setState(() {
+              _liveDistance = event.toDouble();
+            });
+          }
+        },
+        onError: (dynamic error) {
+          debugPrint('Hardware ToF sensor EventChannel error: $error');
         }
-      },
-      onError: (dynamic error) {
-        debugPrint('Hardware ToF sensor stream error: $error');
+      );
+    }
+
+    // 2-2. 웹 환경 및 공통 환경: 하드웨어 ToF 웹소켓 게이트웨이와 자동 스트림 연동
+    _connectWebSocket();
+  }
+
+  void _connectWebSocket() async {
+    final List<String> targetUrls = [
+      'ws://127.0.0.1:8081',
+      'ws://localhost:8081',
+      'ws://192.168.0.100:8081', // 일반적인 로컬 무선 ToF 센서 기기 IP
+    ];
+
+    for (String url in targetUrls) {
+      try {
+        debugPrint('[Sensor Connection] ToF 웹소켓 연결 시도: $url');
+        // dart:io의 WebSocket은 웹 환경에서 브라우저 WebSocket API로 크로스 컴파일되어 원활히 동작합니다.
+        final socket = await WebSocket.connect(url).timeout(const Duration(seconds: 2));
+        _webSocket = socket;
+        
+        _wsSubscription = socket.listen(
+          (dynamic data) {
+            if (mounted) {
+              try {
+                double? parsedValue;
+                if (data is String) {
+                  final trimmed = data.trim();
+                  if (trimmed.startsWith('{')) {
+                    final Map<String, dynamic> json = jsonDecode(trimmed);
+                    parsedValue = (json['distance'] ?? json['measurement_value'] ?? json['measurement_val'] ?? json['value'])?.toDouble();
+                  } else {
+                    parsedValue = double.tryParse(trimmed);
+                  }
+                } else if (data is num) {
+                  parsedValue = data.toDouble();
+                }
+                
+                if (parsedValue != null) {
+                  setState(() {
+                    _liveDistance = parsedValue!;
+                  });
+                }
+              } catch (e) {
+                debugPrint('ToF 데이터 파싱 실패: $e');
+              }
+            }
+          },
+          onError: (err) {
+            debugPrint('ToF 웹소켓 스트림 에러: $err');
+            _reconnectWebSocket();
+          },
+          onDone: () {
+            debugPrint('ToF 웹소켓 연결 해제');
+            _reconnectWebSocket();
+          }
+        );
+        debugPrint('[Sensor Connection] ToF 웹소켓 연결 성공: $url');
+        break;
+      } catch (e) {
+        debugPrint('ToF 웹소켓 연결 실패 ($url): $e');
       }
-    );
+    }
+  }
+
+  void _reconnectWebSocket() {
+    Timer(const Duration(seconds: 5), () {
+      if (mounted && _webSocket == null) {
+        _connectWebSocket();
+      }
+    });
   }
 
   Future<void> _initializeCamera() async {
@@ -2491,6 +2574,10 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
     WidgetsBinding.instance.removeObserver(this); // 라이프사이클 옵저버 해제
     _sensorSubscription?.cancel(); // ToF 센서 스트림 구독 해제
     _sensorSubscription = null;
+    _wsSubscription?.cancel(); // 웹소켓 스트림 구독 해제
+    _wsSubscription = null;
+    _webSocket?.close();
+    _webSocket = null;
     _controller?.dispose();
     _controller = null;
     super.dispose();
