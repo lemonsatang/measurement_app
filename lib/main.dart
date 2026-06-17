@@ -2496,10 +2496,9 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
         // 실제 네트워크 레이턴시 상황을 가정하여 Supabase INSERT 호출
         await supabase.from('tb_measurement').insert({
           'name': 'mouse',
-          'measurement_value': 120.5,
+          'measurement_value': currentDistance,
           'confidence': 0.92,
           'is_trained': 'N',
-          'measurement_val': currentDistance,
           'username': currentUserId,
         });
 
@@ -2534,9 +2533,18 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
     try {
       final cameras = await availableCameras();
       if (cameras.isEmpty) return;
-      final firstCamera = cameras.first;
+      
+      // 스마트폰 후면 카메라 강제 설정
+      CameraDescription selectedCamera = cameras.first;
+      for (var camera in cameras) {
+        if (camera.lensDirection == CameraLensDirection.back) {
+          selectedCamera = camera;
+          break;
+        }
+      }
+
       _controller = CameraController(
-        firstCamera,
+        selectedCamera,
         ResolutionPreset.medium,
       );
       _initializeControllerFuture = _controller!.initialize();
@@ -2653,10 +2661,9 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
                     // 3. UI 및 Supabase INSERT 스키마 확장 (measurement_val 컬럼에 실시간 센서 거리 저장)
                     await supabase.from('tb_measurement').insert({
                       'name': 'mouse',
-                      'measurement_value': 120.5,
+                      'measurement_value': double.parse(_liveDistance.toStringAsFixed(1)),
                       'confidence': 0.92,
                       'is_trained': 'N',
-                      'measurement_val': double.parse(_liveDistance.toStringAsFixed(1)),
                       'username': widget.loggedInUserId,
                     });
 
