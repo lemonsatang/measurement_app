@@ -2522,7 +2522,7 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
     final List<String> targetUrls = [
       'ws://127.0.0.1:8081',
       'ws://localhost:8081',
-      'ws://192.168.0.100:8081', // 일반적인 로컬 무선 ToF 센서 기기 IP
+      'ws://172.16.100.73:8081', // ToF 센서 게이트웨이가 구동 중인 PC의 실제 IPv4 주소
     ];
 
     _connectToSingleWebSocket(targetUrls, 0);
