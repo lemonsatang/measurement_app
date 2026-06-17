@@ -2436,12 +2436,17 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
   final String _objectName = 'mouse'; // 물체 식별명
   Uint8List? _capturedBytes; // 촬영되어 일시정지된 고정 프레임 이미지 바이트
 
+  // 3. 센서 끊김 감지 및 시뮬레이션 폴백 제어 필드
+  DateTime _lastSensorUpdateTime = DateTime.now().subtract(const Duration(seconds: 10)); // 마지막 센서 갱신 시간
+  Timer? _fallbackTimer; // 센서 단절 대비 자동 폴백 타이머
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this); // 2중 안전 장치: 앱 라이프사이클 옵저버 추가
     _initializeCamera();
     _startRealSensorStream(); // 진짜 하드웨어 센서 스트림 연결 (EventChannel + WebSocketChannel)
+    _startFallbackTimer(); // 센서 데이터 미수신 시 동작하는 자동 폴백 타이머 가동
   }
 
   @override
@@ -2452,13 +2457,35 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
       _sensorSubscription = null;
       _wsSubscription?.cancel();
       _wsSubscription = null;
+      _fallbackTimer?.cancel();
+      _fallbackTimer = null;
       try {
         _webSocketChannel?.sink.close();
       } catch (_) {}
       _webSocketChannel = null;
     } else if (state == AppLifecycleState.resumed) {
       _startRealSensorStream();
+      _startFallbackTimer();
     }
+  }
+
+  // 3초 이상 센서 데이터 유실 시 부드러운 왕복 값(450~650mm)으로 흔들어주는 자동 시뮬레이터
+  void _startFallbackTimer() {
+    _fallbackTimer?.cancel();
+    _fallbackTimer = Timer.periodic(const Duration(milliseconds: 250), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      
+      // 3초 이상 센서 데이터 유입이 없고, 편집 화면이 아닐 때만 자동 시뮬레이션 작동
+      if (DateTime.now().difference(_lastSensorUpdateTime).inSeconds >= 3 && !_isEditingMode) {
+        setState(() {
+          final double seconds = DateTime.now().millisecondsSinceEpoch / 1000.0;
+          _liveDistance = 550.0 + 100.0 * math.sin(seconds * 1.5);
+        });
+      }
+    });
   }
 
   // 진짜 하드웨어 ToF/LiDAR 센서 스트림 구독 (EventChannel + WebSocket 자동 연동)
@@ -2477,6 +2504,7 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
           if (mounted && !_isEditingMode && event is num) {
             setState(() {
               _liveDistance = event.toDouble();
+              _lastSensorUpdateTime = DateTime.now(); // 데이터 수신 시간 갱신
             });
           }
         },
@@ -2502,6 +2530,7 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
 
   void _connectToSingleWebSocket(List<String> urls, int index) {
     if (index >= urls.length) {
+      _webSocketChannel = null;
       _reconnectWebSocket();
       return;
     }
@@ -2528,6 +2557,7 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
               if (parsedValue != null) {
                 setState(() {
                   _liveDistance = parsedValue!;
+                  _lastSensorUpdateTime = DateTime.now(); // 데이터 수신 시간 갱신
                 });
               }
             } catch (e) {
@@ -2537,16 +2567,19 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
         },
         onError: (err) {
           debugPrint('ToF 웹소켓 에러 ($url): $err');
+          _webSocketChannel = null;
           _connectToSingleWebSocket(urls, index + 1);
         },
         onDone: () {
           debugPrint('ToF 웹소켓 연결 종료 ($url)');
+          _webSocketChannel = null;
           _connectToSingleWebSocket(urls, index + 1);
         }
       );
       debugPrint('[Sensor Connection] ToF 웹소켓 채널 연결 수립 완료: $url');
     } catch (e) {
       debugPrint('ToF 웹소켓 연결 예외 발생 ($url): $e');
+      _webSocketChannel = null;
       _connectToSingleWebSocket(urls, index + 1);
     }
   }
@@ -2601,6 +2634,8 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
     _sensorSubscription = null;
     _wsSubscription?.cancel(); // 웹소켓 스트림 구독 해제
     _wsSubscription = null;
+    _fallbackTimer?.cancel();
+    _fallbackTimer = null;
     try {
       _webSocketChannel?.sink.close();
     } catch (_) {}
@@ -2612,6 +2647,8 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
 
   @override
   Widget build(BuildContext context) {
+    final bool isSensorConnected = DateTime.now().difference(_lastSensorUpdateTime).inSeconds < 3;
+
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
@@ -2722,19 +2759,24 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
                     decoration: BoxDecoration(
                       color: Colors.black.withValues(alpha: 0.7),
                       borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.tealAccent, width: 1.5),
+                      border: Border.all(
+                        color: isSensorConnected ? Colors.tealAccent : Colors.amberAccent,
+                        width: 1.5,
+                      ),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.tealAccent.withValues(alpha: 0.2),
+                          color: (isSensorConnected ? Colors.tealAccent : Colors.amberAccent).withValues(alpha: 0.2),
                           blurRadius: 8,
                           spreadRadius: 1,
                         ),
                       ],
                     ),
                     child: Text(
-                      '🎯 센서 측정 거리: ${_liveDistance.toStringAsFixed(1)} mm',
-                      style: const TextStyle(
-                        color: Colors.tealAccent,
+                      isSensorConnected
+                          ? '🎯 센서 측정 거리: ${_liveDistance.toStringAsFixed(1)} mm (실시간)'
+                          : '⚠️ 센서 연결 대기: ${_liveDistance.toStringAsFixed(1)} mm (시뮬레이션)',
+                      style: TextStyle(
+                        color: isSensorConnected ? Colors.tealAccent : Colors.amberAccent,
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                         letterSpacing: 0.5,
