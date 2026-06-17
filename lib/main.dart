@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -9,6 +10,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:bcrypt/bcrypt.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import 'api/apiService.dart';
 
 // 계측 모드 열거형 정의
@@ -2421,7 +2423,7 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
   // 1. ToF/LiDAR 하드웨어 센서 기기 통신 스트림을 위한 EventChannel 및 웹소켓 스트림 정의
   static const EventChannel _sensorEventChannel = EventChannel('com.fishlen.measurement/sensor');
   StreamSubscription? _sensorSubscription;
-  WebSocket? _webSocket;
+  WebSocketChannel? _webSocketChannel;
   StreamSubscription? _wsSubscription;
   double _liveDistance = 120.5; // 센서 수신 거리의 기본값 초기화 (mm)
 
@@ -2432,13 +2434,14 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
   int? _activePointIndex; // 현재 마우스/터치 드래그 중인 포인트 인덱스 (1: Start, 2: End)
   double _editedValue = 120.5; // 수동으로 보정된 실측 거리 (mm)
   final String _objectName = 'mouse'; // 물체 식별명
+  Uint8List? _capturedBytes; // 촬영되어 일시정지된 고정 프레임 이미지 바이트
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this); // 2중 안전 장치: 앱 라이프사이클 옵저버 추가
     _initializeCamera();
-    _startRealSensorStream(); // 진짜 하드웨어 센서 스트림 연결 (EventChannel + WebSocket)
+    _startRealSensorStream(); // 진짜 하드웨어 센서 스트림 연결 (EventChannel + WebSocketChannel)
   }
 
   @override
@@ -2449,8 +2452,10 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
       _sensorSubscription = null;
       _wsSubscription?.cancel();
       _wsSubscription = null;
-      _webSocket?.close();
-      _webSocket = null;
+      try {
+        _webSocketChannel?.sink.close();
+      } catch (_) {}
+      _webSocketChannel = null;
     } else if (state == AppLifecycleState.resumed) {
       _startRealSensorStream();
     }
@@ -2460,14 +2465,16 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
   void _startRealSensorStream() {
     _sensorSubscription?.cancel(); // 중복 구독 방지
     _wsSubscription?.cancel();
-    _webSocket?.close();
-    _webSocket = null;
+    try {
+      _webSocketChannel?.sink.close();
+    } catch (_) {}
+    _webSocketChannel = null;
 
     // 2-1. 모바일 앱 환경일 경우 EventChannel 스트림 구독 (LiDAR/ToF 네이티브 플러그인 대응)
     if (!kIsWeb) {
       _sensorSubscription = _sensorEventChannel.receiveBroadcastStream().listen(
         (dynamic event) {
-          if (mounted && event is num) {
+          if (mounted && !_isEditingMode && event is num) {
             setState(() {
               _liveDistance = event.toDouble();
             });
@@ -2483,67 +2490,70 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
     _connectWebSocket();
   }
 
-  void _connectWebSocket() async {
+  void _connectWebSocket() {
     final List<String> targetUrls = [
       'ws://127.0.0.1:8081',
       'ws://localhost:8081',
       'ws://192.168.0.100:8081', // 일반적인 로컬 무선 ToF 센서 기기 IP
     ];
 
-    for (String url in targetUrls) {
-      try {
-        debugPrint('[Sensor Connection] ToF 웹소켓 연결 시도: $url');
-        // dart:io의 WebSocket은 웹 환경에서 브라우저 WebSocket API로 크로스 컴파일되어 원활히 동작합니다.
-        final socket = await WebSocket.connect(url).timeout(const Duration(seconds: 2));
-        _webSocket = socket;
-        
-        _wsSubscription = socket.listen(
-          (dynamic data) {
-            if (mounted) {
-              try {
-                double? parsedValue;
-                if (data is String) {
-                  final trimmed = data.trim();
-                  if (trimmed.startsWith('{')) {
-                    final Map<String, dynamic> json = jsonDecode(trimmed);
-                    parsedValue = (json['distance'] ?? json['measurement_value'] ?? json['measurement_val'] ?? json['value'])?.toDouble();
-                  } else {
-                    parsedValue = double.tryParse(trimmed);
-                  }
-                } else if (data is num) {
-                  parsedValue = data.toDouble();
-                }
-                
-                if (parsedValue != null) {
-                  setState(() {
-                    _liveDistance = parsedValue!;
-                  });
-                }
-              } catch (e) {
-                debugPrint('ToF 데이터 파싱 실패: $e');
+    _connectToSingleWebSocket(targetUrls, 0);
+  }
+
+  void _connectToSingleWebSocket(List<String> urls, int index) {
+    if (index >= urls.length) {
+      _reconnectWebSocket();
+      return;
+    }
+
+    final String url = urls[index];
+    debugPrint('[Sensor Connection] ToF 웹소켓 연결 시도: $url');
+    try {
+      final channel = WebSocketChannel.connect(Uri.parse(url));
+      _webSocketChannel = channel;
+
+      _wsSubscription = channel.stream.listen(
+        (dynamic data) {
+          if (mounted && !_isEditingMode) { // 편집 모드 중에는 수신한 센서 값이 갱신되지 않도록 잠금
+            try {
+              final String rawStr = data.toString().trim();
+              double? parsedValue;
+              if (rawStr.startsWith('{')) {
+                final Map<String, dynamic> json = jsonDecode(rawStr);
+                parsedValue = (json['distance'] ?? json['measurement_value'] ?? json['measurement_val'] ?? json['value'])?.toDouble();
+              } else {
+                parsedValue = double.tryParse(rawStr);
               }
+
+              if (parsedValue != null) {
+                setState(() {
+                  _liveDistance = parsedValue!;
+                });
+              }
+            } catch (e) {
+              debugPrint('ToF 데이터 파싱 실패: $e');
             }
-          },
-          onError: (err) {
-            debugPrint('ToF 웹소켓 스트림 에러: $err');
-            _reconnectWebSocket();
-          },
-          onDone: () {
-            debugPrint('ToF 웹소켓 연결 해제');
-            _reconnectWebSocket();
           }
-        );
-        debugPrint('[Sensor Connection] ToF 웹소켓 연결 성공: $url');
-        break;
-      } catch (e) {
-        debugPrint('ToF 웹소켓 연결 실패 ($url): $e');
-      }
+        },
+        onError: (err) {
+          debugPrint('ToF 웹소켓 에러 ($url): $err');
+          _connectToSingleWebSocket(urls, index + 1);
+        },
+        onDone: () {
+          debugPrint('ToF 웹소켓 연결 종료 ($url)');
+          _connectToSingleWebSocket(urls, index + 1);
+        }
+      );
+      debugPrint('[Sensor Connection] ToF 웹소켓 채널 연결 수립 완료: $url');
+    } catch (e) {
+      debugPrint('ToF 웹소켓 연결 예외 발생 ($url): $e');
+      _connectToSingleWebSocket(urls, index + 1);
     }
   }
 
   void _reconnectWebSocket() {
     Timer(const Duration(seconds: 5), () {
-      if (mounted && _webSocket == null) {
+      if (mounted && _webSocketChannel == null) {
         _connectWebSocket();
       }
     });
@@ -2591,8 +2601,10 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
     _sensorSubscription = null;
     _wsSubscription?.cancel(); // 웹소켓 스트림 구독 해제
     _wsSubscription = null;
-    _webSocket?.close();
-    _webSocket = null;
+    try {
+      _webSocketChannel?.sink.close();
+    } catch (_) {}
+    _webSocketChannel = null;
     _controller?.dispose();
     _controller = null;
     super.dispose();
@@ -2611,6 +2623,7 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
             if (_isEditingMode) {
               setState(() {
                 _isEditingMode = false;
+                _capturedBytes = null;
               });
             } else {
               Navigator.of(context).pop();
@@ -2620,20 +2633,25 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
       ),
       body: Stack(
         children: [
-          // 1. 카메라 프리뷰 백그라운드 배치
+          // 1. 카메라 프리뷰 백그라운드 혹은 촬영 정지화면 배치
           Positioned.fill(
-            child: _controller == null || _initializeControllerFuture == null
-                ? const Center(child: CircularProgressIndicator(color: Colors.tealAccent))
-                : FutureBuilder<void>(
-                    future: _initializeControllerFuture,
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.done) {
-                        return CameraPreview(_controller!);
-                      } else {
-                        return const Center(child: CircularProgressIndicator(color: Colors.tealAccent));
-                      }
-                    },
-                  ),
+            child: _isEditingMode && _capturedBytes != null
+                ? Image.memory(
+                    _capturedBytes!,
+                    fit: BoxFit.cover,
+                  )
+                : (_controller == null || _initializeControllerFuture == null
+                    ? const Center(child: CircularProgressIndicator(color: Colors.tealAccent))
+                    : FutureBuilder<void>(
+                        future: _initializeControllerFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.done) {
+                            return CameraPreview(_controller!);
+                          } else {
+                            return const Center(child: CircularProgressIndicator(color: Colors.tealAccent));
+                          }
+                        },
+                      )),
           ),
 
           // 2. 가상의 BBox & Keypoint 인터랙티브 에디터 오버레이 (편집 모드 시 렌더링)
@@ -2720,12 +2738,12 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
                         letterSpacing: 0.5,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
 
           // 4. 하단 제어 및 서브밋 버튼들
           Positioned(
@@ -2734,66 +2752,110 @@ class _MeasurementCameraPageState extends State<MeasurementCameraPage> with Widg
             bottom: 30,
             child: Center(
               child: _isEditingMode
-                  ? ElevatedButton.icon(
-                      onPressed: () async {
-                        final messenger = ScaffoldMessenger.of(context);
-                        final navigator = Navigator.of(context);
-
-                        try {
-                          final supabase = Supabase.instance.client;
-
-                          // 최종 보정된 거리를 Supabase 'tb_measurement' 테이블에 적재
-                          await supabase.from('tb_measurement').insert({
-                            'name': _objectName,
-                            'measurement_value': double.parse(_editedValue.toStringAsFixed(1)),
-                            'confidence': 0.92,
-                            'is_trained': 'N',
-                            'username': widget.loggedInUserId,
-                          });
-
-                          messenger.showSnackBar(
-                            const SnackBar(
-                              content: Text('[SUCCESS] 보정된 ToF 센서 계측 로그가 Supabase에 최종 저장되었습니다.'),
-                              backgroundColor: Colors.green,
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _isEditingMode = false;
+                              _capturedBytes = null;
+                              _activePointIndex = null;
+                            });
+                          },
+                          icon: const Icon(Icons.refresh_rounded, color: Colors.black),
+                          label: const Text(
+                            '🔄 다시 촬영',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.white70,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
                             ),
-                          );
-                          navigator.pop();
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            final messenger = ScaffoldMessenger.of(context);
+                            final navigator = Navigator.of(context);
+
+                            try {
+                              final supabase = Supabase.instance.client;
+
+                              // 최종 보정된 거리를 Supabase 'tb_measurement' 테이블에 적재
+                              await supabase.from('tb_measurement').insert({
+                                'name': _objectName,
+                                'measurement_value': double.parse(_editedValue.toStringAsFixed(1)),
+                                'confidence': 0.92,
+                                'is_trained': 'N',
+                                'username': widget.loggedInUserId,
+                              });
+
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text('[SUCCESS] 보정된 ToF 센서 계측 로그가 Supabase에 최종 저장되었습니다.'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                              navigator.pop();
+                            } catch (e) {
+                              messenger.showSnackBar(
+                                SnackBar(
+                                  content: Text('[ERROR] 최종 저장 실패: $e'),
+                                  backgroundColor: Colors.redAccent,
+                                ),
+                              );
+                            }
+                          },
+                          icon: const Icon(Icons.check_circle_rounded, color: Colors.black),
+                          label: const Text(
+                            '🎯 최종 확정 및 저장',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.black),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.tealAccent,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(30),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : ElevatedButton.icon(
+                      onPressed: () async {
+                        if (_controller == null || !_controller!.value.isInitialized) {
+                          return;
+                        }
+                        try {
+                          // 1. 카메라 현재 프레임 캡처
+                          final XFile file = await _controller!.takePicture();
+                          final Uint8List bytes = await file.readAsBytes();
+
+                          // 2. 상태 갱신하여 프리즈(Freeze) 및 편집 모드 진입
+                          setState(() {
+                            _capturedBytes = bytes;
+                            _isEditingMode = true;
+                            _editedValue = _liveDistance; // 스냅샷 시점의 ToF 거리 고정
+
+                            // ToF 거리를 픽셀 좌표 스케일로 역산하여 BBox 우하단 핸들 기본 크기 매핑
+                            final double initialPixelDist = _editedValue / 0.75;
+                            _keypointEnd = Offset(
+                              _keypointStart.dx + initialPixelDist * 0.707,
+                              _keypointStart.dy + initialPixelDist * 0.707,
+                            );
+                          });
                         } catch (e) {
-                          messenger.showSnackBar(
+                          ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
-                              content: Text('[ERROR] 최종 저장 실패: $e'),
+                              content: Text('[ERROR] 프레임 캡처 실패: $e'),
                               backgroundColor: Colors.redAccent,
                             ),
                           );
                         }
-                      },
-                      icon: const Icon(Icons.check_circle_rounded, color: Colors.black),
-                      label: const Text(
-                        '🎯 최종 확정 및 저장',
-                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.black),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.tealAccent,
-                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                      ),
-                    )
-                  : ElevatedButton.icon(
-                      onPressed: () {
-                        // 즉시 적재를 중단하고, 현재 ToF 거리 값으로 편집 모드 동기화 및 진입
-                        setState(() {
-                          _isEditingMode = true;
-                          _editedValue = _liveDistance;
-                          
-                          // ToF 거리를 픽셀 좌표 스케일로 역산하여 BBox 우하단 핸들 기본 크기 매핑
-                          final double initialPixelDist = _editedValue / 0.75;
-                          _keypointEnd = Offset(
-                            _keypointStart.dx + initialPixelDist * 0.707,
-                            _keypointStart.dy + initialPixelDist * 0.707,
-                          );
-                        });
                       },
                       icon: const Icon(Icons.center_focus_strong_rounded, color: Colors.black),
                       label: const Text(
